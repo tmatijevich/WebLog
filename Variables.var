@@ -1,0 +1,14 @@
+VAR
+	fbGetIdent : ArEventLogGetIdent;
+	fbGetLatestRecordID : ArEventLogGetLatestRecordID;
+	fbReadRecord : ArEventLogRead;
+	fbReadDescription : ArEventLogReadDescription;
+	fbReadAddnData : ArEventLogReadAddData;
+	fbReadObjectID : ArEventLogReadObjectID;
+	sampleRecord : WebLoggerRecordType;
+	utcConversion : UtcDT_TO_LocalDTStructure;
+	dateTimeStructure : DTStructure;
+	test : BOOL;
+	cyclic : BOOL;
+	clear : BOOL;
+END_VAR
