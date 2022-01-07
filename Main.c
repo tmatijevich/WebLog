@@ -1,15 +1,25 @@
 
-#include <bur/plctypes.h>
-#include <string.h>
-#include <stdbool.h>
-
 #ifdef _DEFAULT_INCLUDES
 	#include <AsDefault.h>
 #endif
 
+#include <string.h>
+#include <stdbool.h>
+
+void MSB_radixSort(unsigned char *arr[], unsigned int n, unsigned char k, unsigned char *sort[]);
+
 void _INIT ProgramInit(void)
 {
-
+	unsortedData[0] = 55;
+	unsortedData[1] = 111;
+	unsortedData[2] = 13;
+	unsortedData[3] = 250;
+	unsortedData[4] = 75;
+	unsortedData[5] = 156;
+	unsortedData[6] = 205;
+	unsortedData[7] = 3;
+	unsortedData[8] = 90;
+	unsortedData[9] = 180;
 }
 
 void _CYCLIC ProgramCyclic(void)
@@ -74,6 +84,24 @@ void _CYCLIC ProgramCyclic(void)
 		strncpy(sampleRecord.ObjectID, fbReadObjectID.ObjectID, 36);
 		sampleRecord.ObjectID[36] = '\0';
 	}
+	
+	// Wait for refresh request
+	
+	// Refresh latest x entries for y logbooks
+	
+	// Wait for refresh to complete
+	
+	// Sort x*y entries to get latest x entries of all logbooks
+	if(runSort) {
+		runSort = false;
+		for(i = 0; i < 10; i++)
+			inputArray[i] = (unsigned long)&unsortedData[i];
+		memcpy(tempArray, inputArray, sizeof(tempArray));
+		MSB_radixSort((unsigned char**)tempArray, 10, 0, (unsigned char**)outputArray);
+		for(i = 0; i < 10; i++) 
+			sortedData[i] = *((unsigned char*)outputArray[i]);
+	}
+	
 }
 
 void _EXIT ProgramExit(void)

@@ -1,3 +1,11 @@
+(*Constants*)
+VAR CONSTANT
+	ENTRIES_MAX : USINT := 20;
+	ENTRIES_INDEX : USINT := ENTRIES_MAX - 1;
+	LOGBOOKS_MAX : USINT := 10;
+	LOGBOOKS_INDEX : USINT := LOGBOOKS_MAX - 1;
+END_VAR
+(*Function blocks*)
 VAR
 	fbGetIdent : ArEventLogGetIdent;
 	fbGetLatestRecordID : ArEventLogGetLatestRecordID;
@@ -11,4 +19,14 @@ VAR
 	test : BOOL;
 	cyclic : BOOL;
 	clear : BOOL;
+END_VAR
+(*Sort*)
+VAR
+	unsortedData : ARRAY[0..9] OF USINT;
+	inputArray : ARRAY[0..9] OF UDINT;
+	tempArray : ARRAY[0..9] OF UDINT;
+	outputArray : ARRAY[0..9] OF UDINT;
+	sortedData : ARRAY[0..9] OF USINT;
+	i : USINT;
+	runSort : BOOL;
 END_VAR
