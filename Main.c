@@ -94,14 +94,20 @@ void _CYCLIC ProgramCyclic(void)
 	// Sort x*y entries to get latest x entries of all logbooks
 	if(runSort) {
 		runSort = false;
-		memcpy(unsortedData, unsortedList, sizeof(unsortedData));
-		for(i = 0; i < 10; i++)
+		//memcpy(unsortedData, unsortedList, sizeof(unsortedData));
+		for(i = 0; i < 10; i++) {
+			unsortedAdr = (unsigned char *)&unsortedList[i];
+			unsortedData[i][1] = *unsortedAdr;
+			unsortedData[i][0] = *(unsortedAdr + 1);
 			inputArray[i] = (unsigned long)&unsortedData[i][0];
 			outputArray[i] = (unsigned long)&sortedData[i][0];
+		}
 		MSB_radixSort((unsigned char**)inputArray, 10, 2, (unsigned char**)outputArray);
 		for(i = 0; i < 10; i++) {
-			for(j = 0; j < 2; j++)
-				sortedData[i][j] = *((unsigned char*)(outputArray[i] + j));
+			sortedData[i][0] = *((unsigned char *)outputArray[i] + 1);
+			sortedData[i][1] = *((unsigned char *)outputArray[i]);
+//			for(j = 0; j < 2; j++)
+//				sortedData[i][j] = *((unsigned char*)outputArray[i] + j);
 		}
 		memcpy(sortedList, sortedData, sizeof(sortedList));
 	}
@@ -112,3 +118,4 @@ void _EXIT ProgramExit(void)
 {
 
 }
+

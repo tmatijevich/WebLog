@@ -13,7 +13,7 @@ void MSB_radixSort(unsigned char *arr[], unsigned int n, const unsigned char k, 
 	unsigned short count[UCHAR_MAX + 1];
 	unsigned char **temp;
 	
-	while(j) {
+	while(j < k) {
 		/* Clear count, then count the byte values */
 		memset(count, 0, sizeof(count));
 		for(i = 0; i < n; i++) 
@@ -33,6 +33,7 @@ void MSB_radixSort(unsigned char *arr[], unsigned int n, const unsigned char k, 
 			arr = sort;
 			sort = temp;
 		}
+		j++; /* Update byte */
 	} 
 	
 } /* Function definition */
