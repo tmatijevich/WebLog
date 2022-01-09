@@ -6,20 +6,20 @@
 #include <string.h>
 #include <stdbool.h>
 
-void MSB_radixSort(unsigned char *arr[], unsigned int n, unsigned char k, unsigned char *sort[]);
+void MSB_radixSort(unsigned char *arr[], unsigned int n, const unsigned char k, unsigned char *sort[]);
 
 void _INIT ProgramInit(void)
 {
-	unsortedData[0] = 55;
-	unsortedData[1] = 111;
-	unsortedData[2] = 13;
-	unsortedData[3] = 250;
-	unsortedData[4] = 75;
-	unsortedData[5] = 156;
-	unsortedData[6] = 205;
-	unsortedData[7] = 3;
-	unsortedData[8] = 90;
-	unsortedData[9] = 180;
+	unsortedList[0] = 65468;
+	unsortedList[1] = 21635;
+	unsortedList[2] = 560;
+	unsortedList[3] = 231;
+	unsortedList[4] = 56165;
+	unsortedList[5] = 5610;
+	unsortedList[6] = 11023;
+	unsortedList[7] = 5156;
+	unsortedList[8] = 53032;
+	unsortedList[9] = 41312;
 }
 
 void _CYCLIC ProgramCyclic(void)
@@ -94,12 +94,16 @@ void _CYCLIC ProgramCyclic(void)
 	// Sort x*y entries to get latest x entries of all logbooks
 	if(runSort) {
 		runSort = false;
+		memcpy(unsortedData, unsortedList, sizeof(unsortedData));
 		for(i = 0; i < 10; i++)
-			inputArray[i] = (unsigned long)&unsortedData[i];
-		memcpy(tempArray, inputArray, sizeof(tempArray));
-		MSB_radixSort((unsigned char**)tempArray, 10, 0, (unsigned char**)outputArray);
-		for(i = 0; i < 10; i++) 
-			sortedData[i] = *((unsigned char*)outputArray[i]);
+			inputArray[i] = (unsigned long)&unsortedData[i][0];
+			outputArray[i] = (unsigned long)&sortedData[i][0];
+		MSB_radixSort((unsigned char**)inputArray, 10, 2, (unsigned char**)outputArray);
+		for(i = 0; i < 10; i++) {
+			for(j = 0; j < 2; j++)
+				sortedData[i][j] = *((unsigned char*)(outputArray[i] + j));
+		}
+		memcpy(sortedList, sortedData, sizeof(sortedList));
 	}
 	
 }

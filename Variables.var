@@ -22,11 +22,13 @@ VAR
 END_VAR
 (*Sort*)
 VAR
-	unsortedData : ARRAY[0..9] OF USINT;
+	unsortedList : ARRAY[0..9] OF UINT;
+	unsortedData : ARRAY[0..9,0..1] OF USINT;
 	inputArray : ARRAY[0..9] OF UDINT;
-	tempArray : ARRAY[0..9] OF UDINT;
 	outputArray : ARRAY[0..9] OF UDINT;
-	sortedData : ARRAY[0..9] OF USINT;
+	sortedData : ARRAY[0..9,0..1] OF USINT;
+	sortedList : ARRAY[0..9] OF UINT;
 	i : USINT;
+	j : USINT;
 	runSort : BOOL;
 END_VAR
