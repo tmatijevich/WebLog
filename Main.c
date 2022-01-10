@@ -16,6 +16,9 @@
 /* Global variables */
 char logbookID[LOGBOOK_MAX][11];
 char logbookName[LOGBOOK_MAX][STRLEN_LOGBOOK];
+ArEventLogIdentType logbookIdent[LOGBOOK_MAX];
+_LOCAL WebLoggerRecordType record[LOGBOOK_MAX][RECORD_MAX];
+_LOCAL unsigned char li, lstate[LOGBOOK_MAX], ri, r0[LOGBOOK_MAX];
 
 void _INIT ProgramInit(void)
 {
@@ -34,7 +37,7 @@ void _INIT ProgramInit(void)
 void _CYCLIC ProgramCyclic(void)
 {
 	/* Declare local variables */
-	static WebLoggerRecordType record[LOGBOOK_MAX][RECORD_MAX]; 			/* x records for all y logbooks */
+	//static _LOCAL WebLoggerRecordType record[LOGBOOK_MAX][RECORD_MAX]; 			/* x records for all y logbooks */
 	static unsigned char prevRefresh; 										/* Detect rising edge of refresh command */
 	static unsigned char state;
 	const int val = 1;
@@ -50,7 +53,7 @@ void _CYCLIC ProgramCyclic(void)
 	static ArEventLogReadDescription_typ fbReadDescription[LOGBOOK_MAX]; 	/* Asynchronous execution */
 	static ArEventLogReadAddData_typ fbReadAsciiData;
 	static ArEventLogReadObjectID_typ fbReadObjectName;
-	static unsigned char lstate[LOGBOOK_MAX], li, ri; 						/* Logbook and record index */
+	//static unsigned char li, lstate[LOGBOOK_MAX], ri, r0[LOGBOOK_MAX]; 		/* Logbook and record index */
 	
 	switch(state) {
 		case 0:
@@ -60,13 +63,23 @@ void _CYCLIC ProgramCyclic(void)
 			fbGetUtcTime.enable = true;
 			UtcDTGetTime(&fbGetUtcTime);
 			
-			if(fbGetLocalTime.status == ERR_OK && fbGetUtcTime.status == ERR_OK) {
-				utcToLocalOffset = ((long)(fbGetLocalTime.DT1 - fbGetUtcTime.DT1) / 3600L) * 3600L;
-				state = 10;
-			}
-			else
+			if(fbGetLocalTime.status != ERR_OK || fbGetUtcTime.status != ERR_OK) {
 				state = 255;
-				
+				break;
+			}
+			
+			utcToLocalOffset = ((long)(fbGetLocalTime.DT1 - fbGetUtcTime.DT1) / 3600L) * 3600L;
+			
+			for(li = 0; li < LOGBOOK_MAX; li++) {
+				strcpy(fbGetIdent.Name, logbookID[li]);
+				fbGetIdent.Execute = true;
+				ArEventLogGetIdent(&fbGetIdent);
+				logbookIdent[li] = fbGetIdent.Ident; /* Zero if error (NOT_FOUND) */
+				fbGetIdent.Execute = false;
+				ArEventLogGetIdent(&fbGetIdent);
+			}
+			
+			state = 10;	
 			break;
 			
 		case 10:
@@ -77,23 +90,101 @@ void _CYCLIC ProgramCyclic(void)
 			break;
 	}
 	
-	for(li = 0; li < WEBLOG_LOGBOOK_MAX; li++) {
-		switch(lstate[li]) {
-			case 0:
-				if(refresh && !prevRefresh && state == 10)
+	for(li = 0; li < LOGBOOK_MAX; li++) { /* Every logbook */
+		for(ri = r0[li]; ri < RECORD_MAX; ri++) { /* Attempt to go through every record */
+			switch(lstate[li]) {
+				case 0:
+					if(refresh && !prevRefresh && state == 10 && logbookIdent[li]) {
+						memset(record[li], 0, sizeof(record[0]));
+						r0[li] = 0;
+						ri = 0;
+						lstate[li] = 10; /* Proceed to next state */
+					}
+					else
+						break; /* Break record loop */
+					
+				case 10:
+					/* Get record ID - syncrhonous execution (every logbook every record) */
+					if(ri == 0) { /* Get latest */
+						fbGetLatestRecord.Ident 	= logbookIdent[li];
+						fbGetLatestRecord.Execute 	= true;
+						ArEventLogGetLatestRecordID(&fbGetLatestRecord);
+						if(fbGetLatestRecord.StatusID != ERR_OK || !fbGetLatestRecord.Done || fbGetLatestRecord.Error) {
+							lstate[li] = 255;
+							fbGetLatestRecord.Execute = false;
+							ArEventLogGetLatestRecordID(&fbGetLatestRecord);
+							break; /* Break record loop */
+						}
+						record[li][ri].ID 			= fbGetLatestRecord.RecordID;
+						fbGetLatestRecord.Execute 	= false;
+						ArEventLogGetLatestRecordID(&fbGetLatestRecord);
+					}
+					else { /* Get previous */
+						fbGetPreviousRecord.Ident 		= logbookIdent[li];
+						fbGetPreviousRecord.RecordID 	= record[li][ri - 1].ID;
+						fbGetPreviousRecord.Execute 	= true;
+						ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+						if(fbGetPreviousRecord.StatusID == arEVENTLOG_ERR_RECORDID_INVALID) {
+							r0[li] = ri;
+							lstate[li] = 0;
+							fbGetPreviousRecord.Execute = false;
+							ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+							break; /* Break record loop */
+						}
+						else if(fbGetPreviousRecord.StatusID != ERR_OK || !fbGetPreviousRecord.Done || fbGetPreviousRecord.Error) {
+							lstate[li] = 255;
+							fbGetPreviousRecord.Execute = false;
+							ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+							break; /* Break record loop */
+						}
+						record[li][ri].ID 				= fbGetPreviousRecord.PrevRecordID;
+						fbGetPreviousRecord.Execute 	= false;
+						ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+					}
+					
+					/* Read event ID and timestamp - syncrhonous execution (every logbook every record) */
+					fbReadRecord.Ident 		= logbookIdent[li];
+					fbReadRecord.RecordID	= record[li][ri].ID;
+					fbReadRecord.Execute 	= true;
+					ArEventLogRead(&fbReadRecord);
+					if(fbReadRecord.StatusID != ERR_OK && fbReadRecord.StatusID != arEVENTLOG_WRN_NO_EVENTID || !fbReadRecord.Done || fbReadRecord.Error) {
+						lstate[li] = 255;
+						fbReadRecord.Execute = false;
+						ArEventLogRead(&fbReadRecord);
+						break; /* Break record loop */
+					}
+					if(fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
+						
+					}
+					else {
+						record[li][ri].eventID 	= fbReadRecord.EventID;
+						record[li][ri].severity = (unsigned char)((fbReadRecord.EventID >> 30) & 0x3);
+						record[li][ri].facility = (unsigned short)((fbReadRecord.EventID >> 16) & 0xFFFF);
+						record[li][ri].code 	= (unsigned short)(fbReadRecord.EventID & 0xFFFF);
+					}
+					fbReadRecord.Execute = false;
+					ArEventLogRead(&fbReadRecord);
+					
+					lstate[li] = 200;
+					
+				case 20:
+				case 30:
+				case 200:
+					record[li][ri].valid = true;
+					if(ri == RECORD_MAX - 1) {
+						lstate[li] = 0;
+						break;
+					}
 					lstate[li] = 10;
-				else
+					continue;
+					
+				case 255:
 					break;
-				
-			case 10:
-				
-				
-			case 20:
-			case 30:
-			case 255:
-				break;
-		}
-	}
+			} /* Logbook state */
+			break; /* If switch statement is broken, break the record for loop as well */
+		} /* Record */
+	} /* Logbook */
+	
 	prevRefresh = refresh;
 	
 //	if(test) {
