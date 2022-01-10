@@ -1,34 +1,18 @@
 (*Constants*)
 VAR CONSTANT
-	ENTRIES_MAX : USINT := 20;
-	ENTRIES_INDEX : USINT := ENTRIES_MAX - 1;
-	LOGBOOKS_MAX : USINT := 10;
-	LOGBOOKS_INDEX : USINT := LOGBOOKS_MAX - 1;
+	WEBLOG_RECORD_MAX : USINT := 20;
+	WEBLOG_RECORD_INDEX : USINT := WEBLOG_RECORD_MAX - 1;
+	WEBLOG_LOGBOOK_MAX : USINT := 10;
+	WEBLOG_LOGBOOK_INDEX : USINT := WEBLOG_LOGBOOK_MAX - 1;
+	WEBLOG_STRLEN_TIMESTAMP : USINT := 25; (*DO NOT MODIFY - the full timestamp requires 25 characters*)
+	WEBLOG_STRLEN_LOGBOOK : USINT := 36;
+	WEBLOG_STRLEN_DESCIPTION : USINT := 125;
 END_VAR
-(*Function blocks*)
+(*Data*)
 VAR
-	fbGetIdent : ArEventLogGetIdent;
-	fbGetLatestRecordID : ArEventLogGetLatestRecordID;
-	fbReadRecord : ArEventLogRead;
-	fbReadDescription : ArEventLogReadDescription;
-	fbReadAddnData : ArEventLogReadAddData;
-	fbReadObjectID : ArEventLogReadObjectID;
-	sampleRecord : WebLoggerRecordType;
-	utcConversion : UtcDT_TO_LocalDTStructure;
-	dateTimeStructure : DTStructure;
-	test : BOOL;
-	cyclic : BOOL;
-	clear : BOOL;
+	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLoggerRecordType; (*Display the latest WEBLOG_RECORD_MAX records*)
 END_VAR
-(*Sort*)
+(*Command*)
 VAR
-	unsortedList : ARRAY[0..9] OF UINT;
-	unsortedData : ARRAY[0..9,0..1] OF USINT;
-	inputArray : ARRAY[0..9] OF UDINT;
-	outputArray : ARRAY[0..9] OF UDINT;
-	sortedData : ARRAY[0..9,0..1] OF USINT;
-	sortedList : ARRAY[0..9] OF UINT;
-	i : USINT;
-	j : USINT;
-	runSort : BOOL;
+	refresh : BOOL;
 END_VAR
