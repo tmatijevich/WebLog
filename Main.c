@@ -12,6 +12,8 @@
 
 /* Function prototypes */
 //void MSB_radixSort(unsigned char *arr[], unsigned int n, const unsigned char k, unsigned char *sort[]);
+void setTimestamp(unsigned long sec, unsigned long nsec, char *str);
+void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
 
 /* Global variables */
 char logbookID[LOGBOOK_MAX][11];
@@ -40,8 +42,6 @@ void _CYCLIC ProgramCyclic(void)
 	//static _LOCAL WebLoggerRecordType record[LOGBOOK_MAX][RECORD_MAX]; 			/* x records for all y logbooks */
 	static unsigned char prevRefresh; 										/* Detect rising edge of refresh command */
 	static unsigned char state;
-	const int val = 1;
-	const unsigned char littleEndian = *((unsigned char*)&val);
 	static long utcToLocalOffset;
 	static DTGetTime_typ fbGetLocalTime;
 	static UtcDTGetTime_typ fbGetUtcTime;
@@ -50,6 +50,7 @@ void _CYCLIC ProgramCyclic(void)
 	static ArEventLogGetLatestRecordID_typ fbGetLatestRecord;
 	static ArEventLogGetPreviousRecordID_typ fbGetPreviousRecord;
 	static ArEventLogRead_typ fbReadRecord;
+	static ArEventLogReadErrorNumber_typ fbReadErrorNumber;
 	static ArEventLogReadDescription_typ fbReadDescription[LOGBOOK_MAX]; 	/* Asynchronous execution */
 	static ArEventLogReadAddData_typ fbReadAsciiData;
 	static ArEventLogReadObjectID_typ fbReadObjectName;
@@ -154,7 +155,20 @@ void _CYCLIC ProgramCyclic(void)
 						break; /* Break record loop */
 					}
 					if(fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
-						
+						fbReadErrorNumber.Ident 	= logbookIdent[li];
+						fbReadErrorNumber.RecordID 	= record[li][ri].ID;
+						fbReadErrorNumber.Execute 	= true;
+						ArEventLogReadErrorNumber(&fbReadErrorNumber);
+						if(fbReadErrorNumber.StatusID != ERR_OK || !fbReadErrorNumber.Done || fbReadErrorNumber.Error) { 
+							lstate[li] = 255;
+							fbReadErrorNumber.Execute = false;
+							ArEventLogReadErrorNumber(&fbReadErrorNumber);
+							break; /* Break record loop */
+						}
+						record[li][ri].errorNumber 	= fbReadErrorNumber.ErrorNumber;
+						record[li][ri].severity 	= fbReadErrorNumber.Severity;
+						fbReadErrorNumber.Execute 	= false;
+						ArEventLogReadErrorNumber(&fbReadErrorNumber);
 					}
 					else {
 						record[li][ri].eventID 	= fbReadRecord.EventID;
@@ -162,13 +176,55 @@ void _CYCLIC ProgramCyclic(void)
 						record[li][ri].facility = (unsigned short)((fbReadRecord.EventID >> 16) & 0xFFFF);
 						record[li][ri].code 	= (unsigned short)(fbReadRecord.EventID & 0xFFFF);
 					}
+					setTimestamp((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, record[li][ri].timestamp);
+					setTimeBytes((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, record[li][ri].timeBytes);
 					fbReadRecord.Execute = false;
 					ArEventLogRead(&fbReadRecord);
 					
-					lstate[li] = 200;
+					lstate[li] = 20;
 					
 				case 20:
+					/* Read description */
+					fbReadDescription[li].Ident 			= logbookIdent[li];
+					fbReadDescription[li].RecordID 			= record[li][ri].ID;
+					fbReadDescription[li].TextBuffer 		= (unsigned long)record[li][ri].description;
+					fbReadDescription[li].TextBufferSize 	= sizeof(record[li][ri].description);
+					fbReadDescription[li].Execute 			= true;
+					ArEventLogReadDescription(&fbReadDescription[li]);
+					if(fbReadDescription[li].Busy) {
+						r0[li] = ri;
+						break; /* Break record loop - use another scan to complete this asynchronous function block */
+					}
+					else if(fbReadDescription[li].StatusID != ERR_OK && fbReadDescription[li].StatusID != arEVENTLOG_WRN_NO_EVENTID || !fbReadDescription[li].Done || fbReadDescription[li].Error) {
+						lstate[li] = 255;
+						fbReadDescription[li].Execute = false;
+						ArEventLogReadDescription(&fbReadDescription[li]);
+						break; /* Break record loop */
+					}
+					fbReadDescription[li].Execute = false;
+					ArEventLogReadDescription(&fbReadDescription[li]);
+					
+					lstate[li] = 30;
+					
 				case 30:
+					/* Read additional (ascii) data */
+					fbReadAsciiData.Ident 		= logbookIdent[li];
+					fbReadAsciiData.RecordID 	= record[li][ri].ID;
+					fbReadAsciiData.AddData 	= (unsigned long)record[li][ri].asciiData;
+					fbReadAsciiData.BytesToRead = sizeof(record[li][ri].asciiData);
+					fbReadAsciiData.Execute 	= true;
+					ArEventLogReadAddData(&fbReadAsciiData);
+					if(fbReadAsciiData.StatusID != ERR_OK || !fbReadAsciiData.Done || fbReadAsciiData.Error) {
+						lstate[li] = 255;
+						fbReadAsciiData.Execute = false;
+						ArEventLogReadAddData(&fbReadAsciiData);
+						break; /* Break record loop */
+					}
+					fbReadAsciiData.Execute = false;
+					ArEventLogReadAddData(&fbReadAsciiData);
+					
+					lstate[li] = 200;
+					
 				case 200:
 					record[li][ri].valid = true;
 					if(ri == RECORD_MAX - 1) {
