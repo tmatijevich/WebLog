@@ -148,7 +148,7 @@ void _CYCLIC ProgramCyclic(void)
 					fbReadRecord.RecordID	= record[li][ri].ID;
 					fbReadRecord.Execute 	= true;
 					ArEventLogRead(&fbReadRecord);
-					if(fbReadRecord.StatusID != ERR_OK && fbReadRecord.StatusID != arEVENTLOG_WRN_NO_EVENTID || !fbReadRecord.Done || fbReadRecord.Error) {
+					if((fbReadRecord.StatusID != ERR_OK && fbReadRecord.StatusID != arEVENTLOG_WRN_NO_EVENTID) || !fbReadRecord.Done || fbReadRecord.Error) {
 						lstate[li] = 255;
 						fbReadRecord.Execute = false;
 						ArEventLogRead(&fbReadRecord);
@@ -195,7 +195,7 @@ void _CYCLIC ProgramCyclic(void)
 						r0[li] = ri;
 						break; /* Break record loop - use another scan to complete this asynchronous function block */
 					}
-					else if(fbReadDescription[li].StatusID != ERR_OK && fbReadDescription[li].StatusID != arEVENTLOG_WRN_NO_EVENTID || !fbReadDescription[li].Done || fbReadDescription[li].Error) {
+					else if((fbReadDescription[li].StatusID != ERR_OK && fbReadDescription[li].StatusID != arEVENTLOG_WRN_NO_EVENTID) || !fbReadDescription[li].Done || fbReadDescription[li].Error) {
 						lstate[li] = 255;
 						fbReadDescription[li].Execute = false;
 						ArEventLogReadDescription(&fbReadDescription[li]);
@@ -235,7 +235,7 @@ void _CYCLIC ProgramCyclic(void)
 					continue;
 					
 				case 201:
-					//if(!refresh) lstate[li] = 0;
+					if(!refresh) lstate[li] = 0;
 					break;
 					
 				case 255:
@@ -253,10 +253,11 @@ void _CYCLIC ProgramCyclic(void)
 		}
 	}
 	
-	if(done && !prevDone && refresh) {
+	if(done && refresh) {
 		for(ri = 0; ri < RECORD_MAX; ri++) {
 			display[ri] = record[0][ri];
 		}
+		refresh = false;
 	}
 	
 	prevRefresh = refresh;
