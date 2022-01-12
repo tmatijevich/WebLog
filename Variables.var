@@ -8,12 +8,14 @@ VAR CONSTANT
 	WEBLOG_STRLEN_LOGBOOK : USINT := 36;
 	WEBLOG_STRLEN_DESCIPTION : USINT := 125;
 END_VAR
+(*Interface*)
+VAR
+	refresh : BOOL;
+	done : BOOL;
+	prevDone : BOOL;
+END_VAR
 (*Data*)
 VAR
 	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLoggerRecordType; (*Display the latest WEBLOG_RECORD_MAX records*)
 END_VAR
 (*Command*)
-VAR
-	refresh : BOOL;
-	valid : BOOL;
-END_VAR

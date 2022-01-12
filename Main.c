@@ -235,7 +235,7 @@ void _CYCLIC ProgramCyclic(void)
 					continue;
 					
 				case 201:
-					if(!refresh) lstate[li] = 0;
+					//if(!refresh) lstate[li] = 0;
 					break;
 					
 				case 255:
@@ -245,22 +245,22 @@ void _CYCLIC ProgramCyclic(void)
 		} /* Record */
 	} /* Logbook */
 	
-	valid = true;
+	done = true;
 	for(li = 0; li < LOGBOOK_MAX; li++) {
 		if(lstate[li] != 201 && logbookIdent[li]) {
-			valid = false;
+			done = false;
 			break;
 		}
 	}
 	
-	if(valid && refresh) {
+	if(done && !prevDone && refresh) {
 		for(ri = 0; ri < RECORD_MAX; ri++) {
 			display[ri] = record[0][ri];
 		}
-		refresh = false;
 	}
 	
 	prevRefresh = refresh;
+	prevDone = done;
 	
 //	if(test) {
 //		test = false;
