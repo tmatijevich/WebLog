@@ -15,4 +15,5 @@ END_VAR
 (*Command*)
 VAR
 	refresh : BOOL;
+	valid : BOOL;
 END_VAR

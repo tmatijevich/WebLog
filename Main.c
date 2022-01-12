@@ -127,7 +127,7 @@ void _CYCLIC ProgramCyclic(void)
 						ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
 						if(fbGetPreviousRecord.StatusID == arEVENTLOG_ERR_RECORDID_INVALID) {
 							r0[li] = ri;
-							lstate[li] = 0;
+							lstate[li] = 201;
 							fbGetPreviousRecord.Execute = false;
 							ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
 							break; /* Break record loop */
@@ -228,11 +228,15 @@ void _CYCLIC ProgramCyclic(void)
 				case 200:
 					record[li][ri].valid = true;
 					if(ri == RECORD_MAX - 1) {
-						lstate[li] = 0;
+						lstate[li] = 201;
 						break;
 					}
 					lstate[li] = 10;
 					continue;
+					
+				case 201:
+					if(!refresh) lstate[li] = 0;
+					break;
 					
 				case 255:
 					break;
@@ -240,6 +244,21 @@ void _CYCLIC ProgramCyclic(void)
 			break; /* If switch statement is broken, break the record for loop as well */
 		} /* Record */
 	} /* Logbook */
+	
+	valid = true;
+	for(li = 0; li < LOGBOOK_MAX; li++) {
+		if(lstate[li] != 201 && logbookIdent[li]) {
+			valid = false;
+			break;
+		}
+	}
+	
+	if(valid && refresh) {
+		for(ri = 0; ri < RECORD_MAX; ri++) {
+			display[ri] = record[0][ri];
+		}
+		refresh = false;
+	}
 	
 	prevRefresh = refresh;
 	
