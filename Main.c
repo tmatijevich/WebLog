@@ -1,18 +1,30 @@
+/*******************************************************************************
+ * File:      WebLog\Main.c
+ * Author:    Tyler Matijevich
+ * Created:   2022-01-05
+********************************************************************************
+ * Use ArEventLog to read, collect, and sort logbook records to display on 
+   web page
+*******************************************************************************/ 
 
-#ifdef _DEFAULT_INCLUDES
-	#include <AsDefault.h>
-#endif
-
+#define _REPLACE_CONST /* Replace PLC constants with define macros instead of const storage modifier */
+#include <AsDefault.h>
 #include <string.h>
 #include <stdbool.h>
 
 /* Function prototypes */
-//void MSB_radixSort(unsigned char *arr[], unsigned int n, const unsigned char k, unsigned char *sort[]);
 void setTimestamp(unsigned long sec, unsigned long nsec, char *str);
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
+void radixSort(unsigned char *arr[], unsigned int n, unsigned char k, unsigned char *sort[]);
 
-void _INIT ProgramInit(void)
-{
+/* Declare global variables */
+//unsigned short ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
+unsigned char *input[WEBLOG_SORT_MAX], *output[WEBLOG_SORT_MAX];
+
+/* Program initialization routine */
+void _INIT ProgramInit(void) {
+	
+	/* Initialize (system) logbook identifiers and their associated names */
 	strcpy(logbook[0].ID, "$arlogsys"); 	strcpy(logbook[0].name, "System");
 	strcpy(logbook[1].ID, "$fieldbus"); 	strcpy(logbook[1].name, "Fieldbus");
 	strcpy(logbook[2].ID, "$arlogconn"); 	strcpy(logbook[2].name, "Connectivity");
@@ -23,51 +35,43 @@ void _INIT ProgramInit(void)
 	strcpy(logbook[7].ID, "$versinfo"); 	strcpy(logbook[7].name, "Version Info");
 	strcpy(logbook[8].ID, "$diag"); 		strcpy(logbook[8].name, "Diagnostics");
 	strcpy(logbook[9].ID, "$arlogusr"); 	strcpy(logbook[9].name, "User");
-}
-
-void _CYCLIC ProgramCyclic(void)
-{	
-	/* Main case statement */
-	switch(state) {
-		case 0:
-			fbGetLocalTime.enable = true;
-			DTGetTime(&fbGetLocalTime);
-			
-			fbGetUtcTime.enable = true;
-			UtcDTGetTime(&fbGetUtcTime);
-			
-			if(fbGetLocalTime.status != ERR_OK || fbGetUtcTime.status != ERR_OK) {
-				state = 255;
-				break;
-			}
-			
-			utcToLocalOffset = ((long)(fbGetLocalTime.DT1 - fbGetUtcTime.DT1) / 3600L) * 3600L;
-			
-			for(li = 0; li < WEBLOG_LOGBOOK_MAX; li++) {
-				strcpy(fbGetIdent.Name, logbook[li].ID);
-				fbGetIdent.Execute = true;
-				ArEventLogGetIdent(&fbGetIdent);
-				logbook[li].ident = fbGetIdent.Ident; /* Zero if error (NOT_FOUND) */
-				fbGetIdent.Execute = false;
-				ArEventLogGetIdent(&fbGetIdent);
-			}
-			
-			state = 10;	
-			break;
-			
-		case 10:
-			break;
-		case 20:
-		case 30:
-		case 255:
-			break;
+	
+	/* Local time change */
+	fbGetLocalTime.enable = true;
+	DTGetTime(&fbGetLocalTime);
+	
+	fbGetUtcTime.enable = true;
+	UtcDTGetTime(&fbGetUtcTime);
+	
+	utcToLocalOffset = ((long)(fbGetLocalTime.DT1 - fbGetUtcTime.DT1) / 3600L) * 3600L;
+	
+	/* Get idents of all logbooks */
+	for(li = 0; li < WEBLOG_LOGBOOK_MAX; li++) {
+		strcpy(fbGetIdent.Name, logbook[li].ID); /* Destination size is 257 */
+		fbGetIdent.Execute = true;
+		ArEventLogGetIdent(&fbGetIdent);
+		logbook[li].ident = fbGetIdent.Ident; /* Zero if error (arEVENTLOG_ERR_LOGBOOK_NOT_FOUND) */
+		fbGetIdent.Execute = false;
+		ArEventLogGetIdent(&fbGetIdent);
 	}
 	
+}
+
+/* Main cyclic routine */
+void _CYCLIC ProgramCyclic(void)
+{	
+	/* Declare local variables */
+	unsigned long i;
+	
+	/* 1. Loop through every logbook, ignore logbooks whose ident is null */
+	/* 2. Attempt to loop through every record, abort if no command or busy with asychronous function */
+	
+	/* Refresh, advance, and return commands */
 	for(li = 0; li < WEBLOG_LOGBOOK_MAX; li++) { /* Every logbook */
 		for(ri = r0[li]; ri < WEBLOG_RECORD_MAX; ri++) { /* Attempt to go through every record */
 			switch(lstate[li]) {
 				case 0:
-					if(refresh && !prevRefresh && state == 10 && logbook[li].ident) {
+					if(refresh && !prevRefresh && logbook[li].ident) {
 						memset(record[li], 0, sizeof(record[0]));
 						r0[li] = 0;
 						ri = 0;
@@ -93,7 +97,7 @@ void _CYCLIC ProgramCyclic(void)
 						fbGetLatestRecord.Execute 	= false;
 						ArEventLogGetLatestRecordID(&fbGetLatestRecord);
 					}
-					else { /* Get previous */
+					 else { /* Get previous */
 						fbGetPreviousRecord.Ident 		= logbook[li].ident;
 						fbGetPreviousRecord.RecordID 	= record[li][ri - 1].ID;
 						fbGetPreviousRecord.Execute 	= true;
@@ -187,7 +191,7 @@ void _CYCLIC ProgramCyclic(void)
 					fbReadAsciiData.BytesToRead = sizeof(record[li][ri].asciiData);
 					fbReadAsciiData.Execute 	= true;
 					ArEventLogReadAddData(&fbReadAsciiData);
-					if(fbReadAsciiData.StatusID != ERR_OK || !fbReadAsciiData.Done || fbReadAsciiData.Error) {
+					if((fbReadAsciiData.StatusID != ERR_OK && fbReadAsciiData.StatusID != arEVENTLOG_INF_SIZE) || !fbReadAsciiData.Done || fbReadAsciiData.Error) {
 						lstate[li] = 255;
 						fbReadAsciiData.Execute = false;
 						ArEventLogReadAddData(&fbReadAsciiData);
@@ -220,13 +224,10 @@ void _CYCLIC ProgramCyclic(void)
 	} /* Logbook */
 	
 	done = true;
-	ready = true;
 	for(li = 0; li < WEBLOG_LOGBOOK_MAX; li++) {
 		if(lstate[li] != 201 && logbook[li].ident) {
 			done = false;
-		}
-		else if(lstate[li] != 0) { 
-			ready = false; 
+			break;
 		}
 	}
 	
@@ -238,6 +239,15 @@ void _CYCLIC ProgramCyclic(void)
 	
 	prevRefresh = refresh;
 	prevDone = done;
+	
+	if(sort && !sort0) {
+		for(i = 0; i < WEBLOG_SORT_MAX; i++) {
+			output[i] = input[i] = &record[i/WEBLOG_RECORD_MAX][i%WEBLOG_RECORD_MAX].timeBytes[0];
+			si[i] = ai[i] = i;
+		}
+		radixSort(input, WEBLOG_SORT_MAX, 1, output);
+	}
+	sort0 = sort;
 	
 //	// Wait for refresh request or advance/return requests
 //	

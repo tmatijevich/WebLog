@@ -4,6 +4,9 @@ VAR CONSTANT
 	WEBLOG_RECORD_INDEX : USINT := WEBLOG_RECORD_MAX - 1;
 	WEBLOG_LOGBOOK_MAX : USINT := 10;
 	WEBLOG_LOGBOOK_INDEX : USINT := WEBLOG_LOGBOOK_MAX - 1;
+	WEBLOG_BYTE_MAX : USINT := 8;
+	WEBLOG_BYTE_INDEX : USINT := WEBLOG_BYTE_MAX - 1;
+	WEBLOG_SORT_MAX : UDINT := WEBLOG_LOGBOOK_MAX * WEBLOG_RECORD_MAX;
 	WEBLOG_STRLEN_TIMESTAMP : USINT := 26; (*DO NOT MODIFY - the full timestamp requires 26 characters*)
 	WEBLOG_STRLEN_LOGBOOK : USINT := 36;
 	WEBLOG_STRLEN_DESCIPTION : USINT := 125;
@@ -11,11 +14,9 @@ END_VAR
 (*Interface*)
 VAR
 	refresh : BOOL;
-	refreshRecords : BOOL;
-	ready : BOOL;
+	advance : BOOL;
+	recede : BOOL;
 	done : BOOL;
-	prevRefresh : BOOL;
-	prevDone : BOOL;
 END_VAR
 (*Control*)
 VAR
@@ -24,6 +25,8 @@ VAR
 	ri : USINT;
 	lstate : ARRAY[0..WEBLOG_LOGBOOK_INDEX] OF USINT;
 	r0 : ARRAY[0..WEBLOG_LOGBOOK_INDEX] OF USINT;
+	prevRefresh : BOOL;
+	prevDone : BOOL;
 END_VAR
 (*Timing*)
 VAR
@@ -41,6 +44,13 @@ VAR
 	fbReadDescription : ARRAY[0..WEBLOG_LOGBOOK_INDEX] OF ArEventLogReadDescription;
 	fbReadAsciiData : ArEventLogReadAddData;
 	fbReadObjectName : ArEventLogReadObjectID;
+END_VAR
+(*Sorting*)
+VAR
+	sort : BOOL;
+	sort0 : BOOL;
+	ai : ARRAY[0..WEBLOG_SORT_MAX] OF UINT;
+	si : ARRAY[0..WEBLOG_SORT_MAX] OF UINT;
 END_VAR
 (*Data*)
 VAR
