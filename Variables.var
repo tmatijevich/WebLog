@@ -34,6 +34,10 @@ VAR
 	fbGetUtcTime : UtcDTGetTime;
 	utcToLocalOffset : DINT;
 END_VAR
+(*Search*)
+VAR
+	search : ARRAY[0..WEBLOG_LOGBOOK_INDEX,0..WEBLOG_RECORD_INDEX] OF WebLogRecordSearchType;
+END_VAR
 (*Function block instances*)
 VAR
 	fbGetIdent : ArEventLogGetIdent;
@@ -55,6 +59,4 @@ END_VAR
 (*Data*)
 VAR
 	logbook : ARRAY[0..WEBLOG_LOGBOOK_INDEX] OF WebLogBookType;
-	record : ARRAY[0..WEBLOG_LOGBOOK_INDEX,0..WEBLOG_RECORD_INDEX] OF WebLogRecordType;
-	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLogRecordType; (*Display the latest WEBLOG_RECORD_MAX records*)
 END_VAR

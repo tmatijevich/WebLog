@@ -12,16 +12,15 @@
 #include <limits.h>
 #include <string.h>
 
-//extern unsigned long ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
-
-void radixSort(unsigned char *arr[], unsigned int n, unsigned char k, unsigned char *sort[]) {
+void radixSort(unsigned char *arr[], unsigned short a[], unsigned short n, unsigned char k, unsigned char *sort[], unsigned short s[]) {
 	
 	/* Declare local variables */
-	short i, j = 0; /* Must exceed bounds of unsigned char */
+	short i, j = k - 1; /* Must exceed bounds of unsigned char */
 	unsigned short count[UCHAR_MAX + 1];
-	unsigned char **temp;
+	unsigned char **temp, *swapPChar;
+	unsigned short swapShort;
 	
-	while(j < k) {
+	while(j >= 0) {
 		/* Clear count, then count the byte values */
 		memset(count, 0, sizeof(count));
 		for(i = 0; i < n; i++) 
@@ -34,19 +33,30 @@ void radixSort(unsigned char *arr[], unsigned int n, unsigned char k, unsigned c
 		/* Use prefix sum to re-order sort */
 		for(i = n-1; i >= 0; i--) {
 			sort[--count[*(arr[i] + j)]] = arr[i]; /* Do not offset by j, offset is always applied to arr */
-			si[count[*(arr[i] + j)]] = ai[i]; /* Store indices as well as addresses */
+			s[count[*(arr[i] + j)]] = a[i]; /* Store indices as well as addresses */
 		}
 		
+		j--; /* Update byte */
+		
 		/* Swap output and input */
-		if(j < k || k % 2) {
+		if(j >= 0) {
 			temp = arr;
 			arr = sort;
 			sort = temp;
-			/* Swap indecies */
-			for(i = 0; i < n; i++) 
-				ai[i] = si[i];
+			for(i = 0; i < n; i++) a[i] = s[i]; /* Swap indecies */
 		}
-		j++; /* Update byte */
+	}
+	
+	/* Reverse sorted output */
+	for(i = 0; i < n/2; i++) {
+		swapShort = s[i];
+		swapPChar = sort[i];
+		
+		s[i] = s[n - 1 - i];
+		sort[i] = sort[n - 1 - i];
+		
+		s[n - 1 - i] = swapShort;
+		sort[n - 1 - i] = swapPChar;
 	}
 	
 } /* Function definition */

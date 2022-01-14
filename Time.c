@@ -1,8 +1,15 @@
+/*******************************************************************************
+ * File:      WebLog\Time.c
+ * Author:    Tyler Matijevich
+ * Created:   2022-01-10
+********************************************************************************
+ * Description: Format time/date string and sortable time data from record
+                timestamp
+*******************************************************************************/
 
-#ifdef _DEFAULT_INCLUDES
-	#include <AsDefault.h>
-#endif
+#include <AsDefault.h>
 
+/* Format time/date string */
 void setTimestamp(unsigned long sec, unsigned long nsec, char *str) {
 	DTStructure dtStruct;
 	
@@ -28,26 +35,13 @@ void setTimestamp(unsigned long sec, unsigned long nsec, char *str) {
 	str[26] = '\0';
 }
 
+/* Format sortable time data */
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
 	const int val = 1;
-	if(*((unsigned char*)&val)) {
-		*(bytes + 0) = *(((unsigned char *)&sec) + 3);
-		*(bytes + 1) = *(((unsigned char *)&sec) + 2);
-		*(bytes + 2) = *(((unsigned char *)&sec) + 1);
-		*(bytes + 3) = *(((unsigned char *)&sec) + 0);
-		*(bytes + 4) = *(((unsigned char *)&nsec) + 3);
-		*(bytes + 5) = *(((unsigned char *)&nsec) + 2);
-		*(bytes + 6) = *(((unsigned char *)&nsec) + 1);
-		*(bytes + 7) = *(((unsigned char *)&nsec) + 0);
-	}
-	else {
-		*(bytes + 0) = *(((unsigned char *)&sec) + 0);
-		*(bytes + 1) = *(((unsigned char *)&sec) + 1);
-		*(bytes + 2) = *(((unsigned char *)&sec) + 2);
-		*(bytes + 3) = *(((unsigned char *)&sec) + 3);
-		*(bytes + 4) = *(((unsigned char *)&nsec) + 0);
-		*(bytes + 5) = *(((unsigned char *)&nsec) + 1);
-		*(bytes + 6) = *(((unsigned char *)&nsec) + 2);
-		*(bytes + 7) = *(((unsigned char *)&nsec) + 3);
+	unsigned char i;
+	/* 0-3 seconds 4-7 nanoseconds (big endian) */
+	for(i = 0; i < 4; i++) { /* Access each byte of unsigned long, if little endian then rotate bytes */
+		bytes[i] = *(((unsigned char *)&sec) + (*((unsigned char*)&val) ? 3 - i : i));
+		bytes[4 + i] = *(((unsigned char *)&nsec) + (*((unsigned char*)&val) ? 3 - i : i));
 	}
 }
