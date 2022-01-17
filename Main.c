@@ -102,7 +102,7 @@ void _CYCLIC ProgramCyclic(void)
 				fbReadRecord.Execute = true;
 				ArEventLogRead(&fbReadRecord);
 				if(fbReadRecord.StatusID == ERR_OK || fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
-					setTimeBytes(fbReadRecord.TimeStamp.sec, fbReadRecord.TimeStamp.nsec, &search[li][ri].time);
+					setTimeBytes((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, search[li][ri].time);
 					search[li][ri].status |= 0x1; /* Record valid */
 				}
 				/* Reset execution */
@@ -120,6 +120,101 @@ void _CYCLIC ProgramCyclic(void)
 		radixSort(input, ai, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, output, si);
 		
 	} /* Refresh command */
+	
+	for(rd = d0; rd < WEBLOG_RECORD_MAX; rd++) {
+		switch(state) {
+			/* Client request */
+			case 0:
+				if(refresh && !prevRefresh) {
+					memset(display, 0, sizeof(display));
+					state = 10;
+					/* Do not break, proceed to next case */
+				}
+				else {
+					d0 = 0;
+					break;
+				}
+				
+			/* EventID/ErrorNumber, Severity (Code, Facility), Timestamp */
+			case 10:
+				ld = si[rd] / WEBLOG_RECORD_MAX;
+				
+				/* Check if valid */
+				if((search[ld][si[rd] % WEBLOG_RECORD_MAX].status & 1) != 1) {
+					display[rd].severity = 10; /* Give invalid severity to avoid displaying "Success" */
+					if(rd >= WEBLOG_RECORD_MAX - 1) {
+						state = 201;
+						break;
+					}
+					continue; /* Skip this record because it is invalid */
+				}
+				
+				strcpy(display[rd].logbook, logbook[ld].name);
+				
+				display[rd].ID = search[ld][si[rd] % WEBLOG_RECORD_MAX].ID; /* Copy record ID */
+				
+				/* EventID + Severity +_Facility + Code or ErrorNumber + Severity */
+				fbReadRecord.Ident = logbook[ld].ident;
+				fbReadRecord.RecordID = display[rd].ID;
+				fbReadRecord.Execute = true;
+				ArEventLogRead(&fbReadRecord);
+				if(fbReadRecord.StatusID == ERR_OK) {
+					display[rd].eventID = fbReadRecord.EventID;
+					display[rd].severity = (unsigned char)((fbReadRecord.EventID >> 30) & 0x3);
+					display[rd].facility = (unsigned short)((fbReadRecord.EventID >> 16) & 0xFFFF);
+					display[rd].code = (unsigned short)((fbReadRecord.EventID) && 0xFFFF);
+				}
+				else if(fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
+					fbReadErrorNumber.Ident = logbook[ld].ident;
+					fbReadErrorNumber.RecordID = display[rd].ID;
+					fbReadErrorNumber.Execute = true;
+					ArEventLogReadErrorNumber(&fbReadErrorNumber);
+					if(fbReadErrorNumber.StatusID == ERR_OK) {
+						display[rd].errorNumber = fbReadErrorNumber.ErrorNumber;
+						display[rd].severity = fbReadErrorNumber.Severity;
+					}
+					fbReadErrorNumber.Execute = false;
+					ArEventLogReadErrorNumber(&fbReadErrorNumber);
+				}
+				
+				/* Timestamp */
+				setTimestamp((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, display[rd].timestamp);
+				
+				fbReadRecord.Execute = false;
+				ArEventLogRead(&fbReadRecord);
+				
+				state = 200; /* Finished */
+				/* Do not break case */
+				
+			/* Description */
+			case 20:
+				/* Do nothing */
+			
+			/* Ascii data and object ID */
+			case 30:
+				/* Do nothing */
+			
+			/* Record done */
+			case 200:
+				if(rd < WEBLOG_RECORD_MAX - 1) {
+					state = 10;
+					continue; /* Next record index */
+				}
+				
+			/* Done */
+			case 201:
+				done = true;
+				if(!refresh) {
+					done = false;
+					state = 0;
+				}
+				break;
+				
+			case 255:
+				break;
+		}
+		break; /* Break record loop */
+	}
 	
 	/* 1. Loop through every logbook, ignore logbooks whose ident is null */
 	/* 2. Attempt to loop through every record, abort if no command or busy with asychronous function */
@@ -296,7 +391,6 @@ void _CYCLIC ProgramCyclic(void)
 //	}
 	
 	prevRefresh = refresh;
-	prevDone = done;
 	
 //	if(sort && !sort0) {
 //		for(i = 0; i < WEBLOG_SORT_MAX; i++) {

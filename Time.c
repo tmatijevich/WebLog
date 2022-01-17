@@ -21,18 +21,20 @@ void setTimestamp(unsigned long sec, unsigned long nsec, char *str) {
 	str[7] = '-';
 	IecPadNumber(dtStruct.day % 100, str + 8, 2, 0);
 	str[10] = ' ';
-	IecPadNumber(dtStruct.hour % 100, str + 11, 2, 0);
-	str[13] = ':';
-	IecPadNumber(dtStruct.minute % 100, str + 14, 2, 0);
-	str[16] = ':';
-	IecPadNumber(dtStruct.second % 100, str + 17, 2, 0);
-	str[19] = ',';
+	str[11] = '/';
+	str[12] = ' ';
+	IecPadNumber(dtStruct.hour % 100, str + 13, 2, 0);
+	str[15] = ':';
+	IecPadNumber(dtStruct.minute % 100, str + 16, 2, 0);
+	str[18] = ':';
+	IecPadNumber(dtStruct.second % 100, str + 19, 2, 0);
+	str[21] = '.';
 	
 	dtStruct.millisec = (nsec % 1000000000) / 1000000;
 	dtStruct.microsec = (nsec % 1000000) / 1000;
-	IecPadNumber(dtStruct.millisec % 1000, str + 20, 3, 0);
-	IecPadNumber(dtStruct.microsec % 1000, str + 23, 3, 0);
-	str[26] = '\0';
+	IecPadNumber(dtStruct.millisec % 1000, str + 22, 3, 0);
+	IecPadNumber(dtStruct.microsec % 1000, str + 25, 3, 0);
+	str[28] = '\0';
 }
 
 /* Format sortable time data */
