@@ -15,12 +15,13 @@ TYPE
 	WebLogRecordDisplayType : 	STRUCT 
 		ID : ArEventLogRecordIDType;
 		logbook : STRING[WEBLOG_STRLEN_LOGBOOK];
-		eventID : DINT;
+		event : DINT;
 		errorNumber : UDINT;
 		severity : USINT;
-		code : UINT;
-		facility : UINT;
-		timestamp : STRING[WEBLOG_STRLEN_TIMESTAMP];
+		sec : UDINT;
+		nsec : UDINT;
+		description : STRING[WEBLOG_STRLEN_DESCIPTION];
 		asciiData : STRING[WEBLOG_STRLEN_DESCIPTION];
+		object : STRING[WEBLOG_STRLEN_LOGBOOK];
 	END_STRUCT;
 END_TYPE

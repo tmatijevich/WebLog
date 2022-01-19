@@ -11,11 +11,13 @@
 #include <AsDefault.h>
 #include <string.h>
 #include <stdbool.h>
+#include <limits.h>
 
 /* Function prototypes */
 void setTimestamp(unsigned long sec, unsigned long nsec, char *str);
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
 void radixSort(unsigned char *arr[], unsigned short a[], unsigned short n, unsigned char k, unsigned char *sort[], unsigned short s[]);
+void replaceQuotes(char *str);
 
 /* Program initialization routine */
 void _INIT ProgramInit(void) {
@@ -149,7 +151,8 @@ void _CYCLIC ProgramCyclic(void)
 					continue; /* Skip this record because it is invalid */
 				}
 				
-				strcpy(display[rd].logbook, logbook[ld].name);
+				strncpy(display[rd].logbook, logbook[ld].name, WEBLOG_STRLEN_LOGBOOK);
+				display[rd].logbook[WEBLOG_STRLEN_LOGBOOK] = '\0';
 				
 				display[rd].ID = search[ld][si[rd] % WEBLOG_RECORD_MAX].ID; /* Copy record ID */
 				
@@ -159,10 +162,10 @@ void _CYCLIC ProgramCyclic(void)
 				fbReadRecord.Execute = true;
 				ArEventLogRead(&fbReadRecord);
 				if(fbReadRecord.StatusID == ERR_OK) {
-					display[rd].eventID = fbReadRecord.EventID;
+					display[rd].event = fbReadRecord.EventID;
 					display[rd].severity = (unsigned char)((fbReadRecord.EventID >> 30) & 0x3);
-					display[rd].facility = (unsigned short)((fbReadRecord.EventID >> 16) & 0xFFFF);
-					display[rd].code = (unsigned short)((fbReadRecord.EventID) && 0xFFFF);
+					/*display[rd].facility = (unsigned short)((fbReadRecord.EventID >> 16) & 0xFFFF);*/
+					/*display[rd].code = (unsigned short)((fbReadRecord.EventID) && 0xFFFF);*/
 				}
 				else if(fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
 					fbReadErrorNumber.Ident = logbook[ld].ident;
@@ -178,21 +181,59 @@ void _CYCLIC ProgramCyclic(void)
 				}
 				
 				/* Timestamp */
-				setTimestamp((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, display[rd].timestamp);
+				/* setTimestamp((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, display[rd].timestamp); */
+				display[rd].sec = fbReadRecord.TimeStamp.sec;
+				display[rd].nsec = fbReadRecord.TimeStamp.nsec;
 				
 				fbReadRecord.Execute = false;
 				ArEventLogRead(&fbReadRecord);
 				
-				state = 200; /* Finished */
+				state = 20; /* Finished */
 				/* Do not break case */
 				
 			/* Description */
 			case 20:
-				/* Do nothing */
+				fbReadDescription.Ident = logbook[ld].ident;
+				fbReadDescription.RecordID = display[rd].ID;
+				fbReadDescription.TextBuffer = (unsigned long)display[rd].description;
+				fbReadDescription.TextBufferSize = sizeof(display[rd].description);
+				fbReadDescription.Execute = true;
+				ArEventLogReadDescription(&fbReadDescription);
+				if(fbReadDescription.Busy) {
+					d0 = rd;
+					break; /* Break and then return to state 20 */
+				}
+				fbReadDescription.Execute = false;
+				ArEventLogReadDescription(&fbReadDescription);
+				replaceQuotes(display[rd].description);
+				state = 30;
+				/* Do not break case */
 			
 			/* Ascii data and object ID */
 			case 30:
-				/* Do nothing */
+				fbReadAsciiData.Ident = logbook[ld].ident;
+				fbReadAsciiData.RecordID = display[rd].ID;
+				fbReadAsciiData.AddData = (unsigned long)display[rd].asciiData;
+				fbReadAsciiData.BytesToRead = sizeof(display[rd].asciiData) - 1;
+				fbReadAsciiData.Execute = true;
+				ArEventLogReadAddData(&fbReadAsciiData);
+				fbReadAsciiData.Execute = false;
+				ArEventLogReadAddData(&fbReadAsciiData);
+				replaceQuotes(display[rd].asciiData);
+				
+				fbReadObjectName.Ident = logbook[ld].ident;
+				fbReadObjectName.RecordID = display[rd].ID;
+				fbReadObjectName.Execute = true;
+				ArEventLogReadObjectID(&fbReadObjectName);
+				if(fbReadObjectName.StatusID == ERR_OK) {
+					strncpy(display[rd].object, fbReadObjectName.ObjectID, WEBLOG_STRLEN_LOGBOOK);
+					display[rd].object[WEBLOG_STRLEN_LOGBOOK] = '\0';
+				}
+				fbReadObjectName.Execute = false;
+				ArEventLogReadObjectID(&fbReadObjectName);
+				
+				state = 200;
+				/* Do not break case */
 			
 			/* Record done */
 			case 200:
@@ -200,6 +241,8 @@ void _CYCLIC ProgramCyclic(void)
 					state = 10;
 					continue; /* Next record index */
 				}
+				state = 201;
+				/* Do not break case */
 				
 			/* Done */
 			case 201:
@@ -435,3 +478,10 @@ void _EXIT ProgramExit(void)
 
 }
 
+void replaceQuotes(char *str) {
+	unsigned char i = 0;
+	while(str[i] && i < UCHAR_MAX) {
+		if(str[i] == '"') str[i] = ' ';
+		i++;
+	}
+}
