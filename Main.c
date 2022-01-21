@@ -16,7 +16,7 @@
 /* Function prototypes */
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
 void replaceQuotes(char *str);
-void radixSort(unsigned char *arr[], unsigned short a[], unsigned short n, unsigned char k, unsigned char *sort[], unsigned short s[]);
+void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
 
 /* Program initialization routine */
 void _INIT ProgramInit(void) {
@@ -116,7 +116,7 @@ void _CYCLIC ProgramCyclic(void)
 			output[s] = input[s] = search[s / WEBLOG_RECORD_MAX][(WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX].time;
 			si[s] = ai[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
 		}
-		radixSort(input, ai, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, output, si);
+		radixSort(input, ai, output, si, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
 		
 	} /* Refresh command */
 	

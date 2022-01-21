@@ -3,60 +3,72 @@
  * Author:    Tyler Matijevich
  * Created:   2022-01-07
 ********************************************************************************
- * Description: Sort all records by time using a MSB (most significant bit) 
- radix-counting sort algorithm
+ * Description: Sort all records by time using LSB radix sort
 *******************************************************************************/
 
-#define _REPLACE_CONST
-#include <AsDefault.h>
 #include <limits.h>
 #include <string.h>
 
-void radixSort(unsigned char *arr[], unsigned short a[], unsigned short n, unsigned char k, unsigned char *sort[], unsigned short s[]) {
+/* Sort n elements of k bytes using LSB radix sort */
+void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending) {
+	
+	/* 
+	 * in:         Array of n pointers each pointing to array of k bytes (descructive)
+	 * idx:        Unsorted indices 0..n-1 (descructive)
+	 * sort:       Memory allocated with size equal to in
+	 * sortIdx:    Sorted indices 0 through n-1
+	 * n:          Number of elements (in, idx, sort, sortIdx)
+	 * k:          Number of bytes pointed to by *in[]
+	 * descending: Ascending or descending
+	 */
 	
 	/* Declare local variables */
-	short i, j = k - 1; /* Must exceed bounds of unsigned char */
-	unsigned short count[UCHAR_MAX + 1];
-	unsigned char **temp, *swapPChar;
-	unsigned short swapShort;
+	long i; 											/* Loop 0..n-1 elements */
+	short offset = k - 1; 								/* Offset 0..k-1 bytes, initialize to LSB */
+	unsigned short count[UCHAR_MAX + 1]; 				/* Count 0..255 byte values */
+	unsigned char **pSwap; 								/* Swap pointers to pointer */
+	unsigned char *pByteSwap; 							/* Swap pointers to byte */
+	unsigned short idxSwap; 							/* Swap indices */
 	
-	while(j >= 0) {
-		/* Clear count, then count the byte values */
-		memset(count, 0, sizeof(count));
+	while(offset >= 0) {
+		/* Count every byte value */
+		memset(count, 0, sizeof(count)); 				/* Reset counts */
 		for(i = 0; i < n; i++) 
-			count[*(arr[i] + j)]++;
+			count[*(in[i] + offset)]++; 				/* Access element, offset address, access byte */
 		
-		/* Compute the prefix sum of byte counts */
+		/* Prefix sum */
 		for(i = 1; i <= UCHAR_MAX; i++)
-			count[i] += count[i-1];
+			count[i] += count[i - 1];
 		
-		/* Use prefix sum to re-order sort */
-		for(i = n-1; i >= 0; i--) {
-			sort[--count[*(arr[i] + j)]] = arr[i]; /* Do not offset by j, offset is always applied to arr */
-			s[count[*(arr[i] + j)]] = a[i]; /* Store indices as well as addresses */
+		/* Order *sort[] */
+		for(i = n - 1; i >= 0; i--) {
+			sort[--count[*(in[i] + offset)]] = in[i]; 	/* Assign MSB */
+			sortIdx[count[*(in[i] + offset)]] = idx[i];
 		}
 		
-		j--; /* Update byte */
+		offset--;
 		
-		/* Swap output and input */
-		if(j >= 0) {
-			temp = arr;
-			arr = sort;
-			sort = temp;
-			for(i = 0; i < n; i++) a[i] = s[i]; /* Swap indecies */
+		/* Swap */
+		if(offset >= 0) {
+			pSwap = in;
+			in = sort;
+			sort = pSwap;
+			memcpy(idx, sortIdx, sizeof(idx[0]) * n);
 		}
 	}
 	
-	/* Reverse sorted output */
-	for(i = 0; i < n/2; i++) {
-		swapShort = s[i];
-		swapPChar = sort[i];
-		
-		s[i] = s[n - 1 - i];
-		sort[i] = sort[n - 1 - i];
-		
-		s[n - 1 - i] = swapShort;
-		sort[n - 1 - i] = swapPChar;
+	/* Descending */
+	if(descending) {
+		for(i = 0; i < n / 2; i++) {
+			pByteSwap = sort[i];
+			idxSwap = sortIdx[i];
+			
+			sort[i] = sort[n - 1 - i];
+			sortIdx[i] = sortIdx[n - 1 - i];
+			
+			sort[n - 1 - i] = pByteSwap;
+			sortIdx[n - 1 - i] = idxSwap;
+		}
 	}
 	
-} /* Function definition */
+} /* Definition */
