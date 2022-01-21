@@ -18,15 +18,22 @@ VAR
 	done : BOOL;
 	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLogRecordDisplayType;
 END_VAR
+(*Search and sort*)
+VAR
+	s : INT; (*Search loop*)
+	l : USINT; (*Logbook loop*)
+	r : USINT; (*Record loop*)
+END_VAR
+(*Display*)
+VAR
+	state : USINT; (*Inner-loop state control to read and store record information for web display*)
+	d : USINT; (*Display loop*)
+	d0 : USINT; (*Initialize display loop*)
+	dr : USINT; (*Display loop record*)
+	dl : USINT; (*Display loop logbook*)
+END_VAR
 (*Control*)
 VAR
-	state : USINT;
-	li : USINT;
-	ri : USINT;
-	r0 : ARRAY[0..WEBLOG_LOGBOOK_INDEX] OF USINT;
-	rd : USINT;
-	ld : USINT;
-	d0 : USINT;
 	prevRefresh : BOOL;
 END_VAR
 (*Timing*)
