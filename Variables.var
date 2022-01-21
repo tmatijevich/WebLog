@@ -16,7 +16,10 @@ VAR
 	up : BOOL;
 	down : BOOL;
 	done : BOOL;
+	valid : BOOL;
 	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLogRecordDisplayType;
+	prevRefresh : BOOL;
+	prevDown : BOOL;
 END_VAR
 (*Search and sort*)
 VAR
@@ -31,10 +34,6 @@ VAR
 	d0 : USINT; (*Initialize display loop*)
 	dr : USINT; (*Display loop record*)
 	dl : USINT; (*Display loop logbook*)
-END_VAR
-(*Control*)
-VAR
-	prevRefresh : BOOL;
 END_VAR
 (*Timing*)
 VAR

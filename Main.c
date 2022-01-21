@@ -62,13 +62,62 @@ void _CYCLIC ProgramCyclic(void)
 	//unsigned short ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
 	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
-	if(refresh && !prevRefresh && state == 0) {
-		memset(search, 0, sizeof(search)); /* Clear search memory */
+	if(((refresh && !prevRefresh) || (down && !prevDown && valid)) && state == 0) {
+		valid = false;
+		
+		/* 
+		 * Refresh
+		 *   Clear search memory
+		 *   Read latest RECORD_MAX records
+		 */
+		if(refresh) {
+			memset(search, 0, sizeof(search)); /* Clear search memory */
+			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+				logbook[l].r_0 = 0;
+				logbook[l].ID_0 = 0; /* Get latest record */
+				logbook[l].skip = false;
+			}
+		}
+		
+		/* 
+		 * Down
+		 *   Search for each logbook's older records
+		 *   Abort logbook if ID of oldest record displayed is 1
+		 *   Start with previous record oldest record disayed (r_b.ID - 1)
+		 *   If no records displayed (255), do not update search
+		 */
+		else if(down) {
+			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+				if(logbook[l].r_b == UCHAR_MAX) {
+					/* Maintain search */
+					logbook[l].skip = true;
+					for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
+						if(search[l][r].status & 0x1 == 0x1) {
+							valid = true;
+							break;
+						}
+					}
+				}
+				else if(search[l][logbook[l].r_b].ID == 1) {
+					/* Clear search */
+					memset(search[l], 0, sizeof(search[0]));
+					logbook[l].skip = true;
+				}
+				else {
+					/* Re-search non-displayed records */
+					logbook[l].r_0 = 0;
+					logbook[l].ID_0 = search[l][logbook[l].r_b].ID;
+					memset(search[l], 0, sizeof(search[0]));
+					logbook[l].skip = false;
+				}
+			}
+		}
+		
 		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-			if(!logbook[l].ident) continue; /* Continue to next logbook */
-			for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
+			if(!logbook[l].ident || logbook[l].skip) continue; /* Continue to next logbook */
+			for(r = logbook[l].r_0; r < WEBLOG_RECORD_MAX; r++) {
 				/* Find record ID */
-				if(r == 0) { /* Latest record */
+				if(r == 0 && logbook[l].ID_0 == 0) { /* Latest record */
 					fbGetLatestRecord.Ident = logbook[l].ident;
 					fbGetLatestRecord.Execute = true;
 					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
@@ -80,7 +129,8 @@ void _CYCLIC ProgramCyclic(void)
 				}
 				else { /* Previous record */
 					fbGetPreviousRecord.Ident = logbook[l].ident;
-					fbGetPreviousRecord.RecordID = search[l][r - 1].ID;
+					if(r == 0) fbGetPreviousRecord.RecordID = logbook[l].ID_0;
+					else fbGetPreviousRecord.RecordID = search[l][r - 1].ID;
 					fbGetPreviousRecord.Execute = true;
 					ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
 					if(fbGetPreviousRecord.StatusID == ERR_OK) 
@@ -108,6 +158,8 @@ void _CYCLIC ProgramCyclic(void)
 				fbReadRecord.Execute = false;
 				ArEventLogRead(&fbReadRecord);
 				
+				valid = true;
+				
 			} /* Record loop */
 		} /* Logbook loop */
 		
@@ -124,12 +176,17 @@ void _CYCLIC ProgramCyclic(void)
 		switch(state) {
 			/* Client request */
 			case 0:
-				if(refresh && !prevRefresh) {
+				if((refresh && !prevRefresh) || (down && !prevDown)) {
+					if(!valid) {
+						state = 201;
+						break;
+					}	
+				
 					memset(display, 0, sizeof(display));
 					
 					for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-						logbook[l].ri_a = UCHAR_MAX;
-						logbook[l].ri_b = UCHAR_MAX;
+						logbook[l].r_a = UCHAR_MAX;
+						logbook[l].r_b = UCHAR_MAX;
 					}
 					
 					state = 10;
@@ -240,8 +297,8 @@ void _CYCLIC ProgramCyclic(void)
 			
 			/* Record done */
 			case 200:
-				if(logbook[dl].ri_a == UCHAR_MAX) logbook[dl].ri_a = dr; /* Newest (timestamp) record displayed */
-				logbook[dl].ri_b = dr; /* Oldest (timestamp) record displayed */
+				if(logbook[dl].r_a == UCHAR_MAX) logbook[dl].r_a = dr; /* Newest (timestamp) record displayed */
+				logbook[dl].r_b = dr; /* Oldest (timestamp) record displayed */
 				
 				if(d < WEBLOG_RECORD_MAX - 1) {
 					state = 10;
@@ -253,7 +310,7 @@ void _CYCLIC ProgramCyclic(void)
 			/* Done */
 			case 201:
 				done = true;
-				if(!refresh) {
+				if(!refresh && !down) {
 					done = false;
 					state = 0;
 				}
@@ -264,6 +321,9 @@ void _CYCLIC ProgramCyclic(void)
 		}
 		break; /* Break record loop */
 	}
+	
+	prevRefresh = refresh;
+	prevDown = down;
 	
 }
 

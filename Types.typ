@@ -9,8 +9,11 @@ TYPE
 		ID : STRING[WEBLOG_STRLEN_LOGBOOK];
 		name : STRING[WEBLOG_STRLEN_LOGBOOK];
 		ident : ArEventLogIdentType;
-		ri_a : USINT; (*Newest record index displayed*)
-		ri_b : USINT; (*Oldest record index displayed*)
+		r_a : USINT; (*Index of newest record displayed*)
+		r_b : USINT; (*Index of oldest record displayed*)
+		r_0 : USINT; (*Initial index for search loop*)
+		ID_0 : ArEventLogRecordIDType; (*Initial record ID*)
+		skip : BOOL;
 	END_STRUCT;
 	WebLogRecordDisplayType : 	STRUCT 
 		ID : ArEventLogRecordIDType;
