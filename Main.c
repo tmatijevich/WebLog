@@ -17,6 +17,7 @@
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
 void replaceQuotes(char *str);
 void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
+long intMin(long a, long b);
 
 /* Program initialization routine */
 void _INIT ProgramInit(void) {
@@ -62,7 +63,7 @@ void _CYCLIC ProgramCyclic(void)
 	//unsigned short ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
 	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
-	if(((refresh && !prevRefresh) || (down && !prevDown && valid)) && state == 0) {
+	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp && valid)) && state == 0) {
 		valid = false;
 		
 		/* 
@@ -76,6 +77,7 @@ void _CYCLIC ProgramCyclic(void)
 				logbook[l].r_0 = 0;
 				logbook[l].ID_0 = 0; /* Get latest record */
 				logbook[l].skip = false;
+				logbook[l].useID = false;
 			}
 		}
 		
@@ -88,6 +90,7 @@ void _CYCLIC ProgramCyclic(void)
 		 */
 		else if(down) {
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+				logbook[l].useID = false;
 				if(logbook[l].r_b == UCHAR_MAX) {
 					/* Maintain search */
 					logbook[l].skip = true;
@@ -113,16 +116,54 @@ void _CYCLIC ProgramCyclic(void)
 			}
 		}
 		
+		/* 
+		 * Up
+		 * Check the newest record displayed, try to go up to RECORD_MAX higher (record ID)
+		 * Compare r_a.ID to the newest record found from last refresh latestID
+		 * If using latestID, skip get previous record
+		 * If no records were displayed, they were too old
+		 * 
+		 */
+		else if(up) {
+			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+				/* lastestID is 0? skip */
+				if(logbook[l].latestID == 0) {
+					/* Never been refresh, no records found, unknown logbook */
+					logbook[l].skip = true;
+				}
+				/* Something displayed? MIN([0].ID + 20, latestID) */
+				else if(search[l][0].ID != 0) {
+					logbook[l].r_0 = 0;
+					logbook[l].ID_0 = intMin(search[l][0].ID + WEBLOG_RECORD_MAX, logbook[l].latestID);
+					logbook[l].skip = false;
+					logbook[l].useID = true;
+				}
+				/* Nothing displayed? MIN(20, latestID) */
+				else {
+					logbook[l].r_0 = 0;
+					logbook[l].ID_0 = intMin(WEBLOG_RECORD_MAX, logbook[l].latestID);
+					logbook[l].skip = false;
+					logbook[l].useID = true;
+				}
+				memset(search[l], 0, sizeof(search[0]));
+			}
+		}
+		
 		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
 			if(!logbook[l].ident || logbook[l].skip) continue; /* Continue to next logbook */
 			for(r = logbook[l].r_0; r < WEBLOG_RECORD_MAX; r++) {
 				/* Find record ID */
-				if(r == 0 && logbook[l].ID_0 == 0) { /* Latest record */
+				if(r == 0 && logbook[l].useID) {
+					search[l][r].ID = logbook[l].ID_0;
+				}
+				else if(r == 0 && logbook[l].ID_0 == 0) { /* Latest record */
 					fbGetLatestRecord.Ident = logbook[l].ident;
 					fbGetLatestRecord.Execute = true;
 					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
-					if(fbGetLatestRecord.Done) 
+					if(fbGetLatestRecord.Done) {
 						search[l][r].ID = fbGetLatestRecord.RecordID;
+						logbook[l].latestID = fbGetLatestRecord.RecordID;
+					}
 					/* Reset execution */
 					fbGetLatestRecord.Execute = false;
 					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
@@ -176,11 +217,11 @@ void _CYCLIC ProgramCyclic(void)
 		switch(state) {
 			/* Client request */
 			case 0:
-				if((refresh && !prevRefresh) || (down && !prevDown)) {
+				if((refresh && !prevRefresh) || (down && !prevDown) || (up && !prevUp)) {
 					if(!valid) {
 						state = 201;
 						break;
-					}	
+					}
 				
 					memset(display, 0, sizeof(display));
 					
@@ -297,6 +338,8 @@ void _CYCLIC ProgramCyclic(void)
 			
 			/* Record done */
 			case 200:
+				search[dl][dr].status |= 0x2;
+				
 				if(logbook[dl].r_a == UCHAR_MAX) logbook[dl].r_a = dr; /* Newest (timestamp) record displayed */
 				logbook[dl].r_b = dr; /* Oldest (timestamp) record displayed */
 				
@@ -310,7 +353,7 @@ void _CYCLIC ProgramCyclic(void)
 			/* Done */
 			case 201:
 				done = true;
-				if(!refresh && !down) {
+				if(!refresh && !down && !up) {
 					done = false;
 					state = 0;
 				}
@@ -324,6 +367,7 @@ void _CYCLIC ProgramCyclic(void)
 	
 	prevRefresh = refresh;
 	prevDown = down;
+	prevUp = up;
 	
 }
 
@@ -351,4 +395,9 @@ void replaceQuotes(char *str) {
 		if(str[i] == '"') str[i] = ' ';
 		i++;
 	}
+}
+
+/* Integer minimum */
+long intMin(long a, long b) {
+	return a > b ? b : a;
 }

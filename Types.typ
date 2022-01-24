@@ -14,6 +14,8 @@ TYPE
 		r_0 : USINT; (*Initial index for search loop*)
 		ID_0 : ArEventLogRecordIDType; (*Initial record ID*)
 		skip : BOOL;
+		latestID : ArEventLogRecordIDType;
+		useID : BOOL;
 	END_STRUCT;
 	WebLogRecordDisplayType : 	STRUCT 
 		ID : ArEventLogRecordIDType;

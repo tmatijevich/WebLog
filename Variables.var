@@ -20,6 +20,7 @@ VAR
 	display : ARRAY[0..WEBLOG_RECORD_INDEX] OF WebLogRecordDisplayType;
 	prevRefresh : BOOL;
 	prevDown : BOOL;
+	prevUp : BOOL;
 END_VAR
 (*Search and sort*)
 VAR
