@@ -18,6 +18,7 @@ void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
 void replaceQuotes(char *str);
 void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
 long intMin(long a, long b);
+long intMax(long a, long b);
 
 /* Program initialization routine */
 void _INIT ProgramInit(void) {
@@ -63,7 +64,7 @@ void _CYCLIC ProgramCyclic(void)
 	//unsigned short ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
 	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
-	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp && valid)) && state == 0) {
+	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp)) && state == 0) {
 		valid = false; /* Invalidate until a new record is found */
 		
 		/* 
@@ -103,6 +104,7 @@ void _CYCLIC ProgramCyclic(void)
 				else {
 					logbook[l].search.skip = false;
 					logbook[l].search.readID = 0; /* Do not directly read */
+					logbook[l].search.skipID = 0;
 					logbook[l].search.referenceID = logbook[l].search.displayedID;
 					memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
 				}
@@ -116,17 +118,19 @@ void _CYCLIC ProgramCyclic(void)
 		 */
 		else if(up) {
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				if(logbook[l].search.latestID == 0) {
+				if(logbook[l].search.latestID == 0 || logbook[l].search.latestID == search[l][0].ID) {
 					logbook[l].search.skip = true;
 				}
 				else if(search[l][0].valid) {
 					logbook[l].search.skip = false;
 					logbook[l].search.readID = intMin(search[l][0].ID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+					logbook[l].search.skipID = search[l][0].ID;
 					logbook[l].search.referenceID = 0; /* Do not reference */
 				}
 				else { /* No records in previous search */
 					logbook[l].search.skip = false;
 					logbook[l].search.readID = intMin(WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+					logbook[l].search.skipID = 0;
 					logbook[l].search.referenceID = 0; /* Do not reference */
 				}
 				memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
@@ -136,6 +140,12 @@ void _CYCLIC ProgramCyclic(void)
 		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
 			if(!logbook[l].ident || logbook[l].search.skip) continue; /* Continue to next logbook */
 			for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
+				if(r > 0 && logbook[l].search.skipID > 0) {
+					if(search[l][r - 1].ID - 1 <= logbook[l].search.skipID) {
+						break; /* Break record loop */
+					}
+				}
+				
 				/* Find record ID */
 				if(r == 0 && logbook[l].search.readID) {
 					search[l][r].ID = logbook[l].search.readID;
@@ -195,6 +205,22 @@ void _CYCLIC ProgramCyclic(void)
 		}
 		radixSort(input, ai, output, si, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
 		
+		/* Get the last WEBLOG_RECORD_MAX records of valid sorted records */
+		if(up) {
+			for(s = 0; s < WEBLOG_SORT_MAX; s++) {
+				dl = si[s] / WEBLOG_RECORD_MAX;
+				dr = si[s] % WEBLOG_RECORD_MAX;
+				if(!search[dl][dr].valid) {
+					/* Find the first invalid sorted record, then look RECORD_MAX entries up */
+					displayOffset = intMax(s - WEBLOG_RECORD_MAX, 0);
+					break;
+				}
+			}
+		}
+		else {
+			displayOffset = 0;
+		}
+		
 	} /* Refresh command */
 	
 	for(d = d0; d < WEBLOG_RECORD_MAX; d++) {
@@ -223,8 +249,8 @@ void _CYCLIC ProgramCyclic(void)
 				
 			/* EventID/ErrorNumber, Severity (Code, Facility), Timestamp */
 			case 10:
-				dl = si[d] / WEBLOG_RECORD_MAX;
-				dr = si[d] % WEBLOG_RECORD_MAX;
+				dl = si[displayOffset + d] / WEBLOG_RECORD_MAX;
+				dr = si[displayOffset + d] % WEBLOG_RECORD_MAX;
 				
 				/* Check if valid */
 				if(!search[dl][dr].valid) {
@@ -380,4 +406,9 @@ void replaceQuotes(char *str) {
 /* Integer minimum */
 long intMin(long a, long b) {
 	return a > b ? b : a;
+}
+
+/* Integer maximum */
+long intMax(long a, long b) {
+	return a > b ? a : b;
 }

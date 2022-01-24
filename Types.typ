@@ -13,10 +13,11 @@ TYPE
 	END_STRUCT;
 	WebLogBookSearchType : 	STRUCT 
 		skip : BOOL; (*(search parameter) Skip logbook search*)
-		displayedID : ArEventLogIdentType; (*(display loop) Oldest record displayed from this logbook*)
-		latestID : ArEventLogIdentType; (*(search loop) Newet record found in this logbook*)
-		readID : ArEventLogIdentType; (*(search parameter) Read this record first in search, skip if 0*)
-		referenceID : ArEventLogIdentType; (*(search parameter) Reference this for previous ID, get latest if 0*)
+		displayedID : ArEventLogRecordIDType; (*(display loop) Oldest record displayed from this logbook*)
+		latestID : ArEventLogRecordIDType; (*(search loop) Newet record found in this logbook*)
+		readID : ArEventLogRecordIDType; (*(search parameter) Read this record first in search, skip if 0*)
+		referenceID : ArEventLogRecordIDType; (*(search parameter) Reference this for previous ID, get latest if 0*)
+		skipID : ArEventLogRecordIDType;
 	END_STRUCT;
 	WebLogRecordDisplayType : 	STRUCT 
 		ID : ArEventLogRecordIDType;

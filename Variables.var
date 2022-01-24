@@ -31,10 +31,11 @@ END_VAR
 (*Display*)
 VAR
 	state : USINT; (*Inner-loop state control to read and store record information for web display*)
-	d : USINT; (*Display loop*)
+	d : INT; (*Display loop*)
 	d0 : USINT; (*Initialize display loop*)
 	dr : USINT; (*Display loop record*)
 	dl : USINT; (*Display loop logbook*)
+	displayOffset : INT;
 END_VAR
 (*Timing*)
 VAR
