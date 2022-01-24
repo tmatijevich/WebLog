@@ -3,19 +3,20 @@ TYPE
 	WebLogRecordSearchType : 	STRUCT  (*Store information about each record's timestamp for each logbook*)
 		ID : ArEventLogRecordIDType; (*Record ID*)
 		time : ARRAY[0..WEBLOG_BYTE_INDEX]OF USINT; (*Seconds and nanoseconds in byte array from record timestamp (big endian)*)
-		status : USINT; (*Bit 0: Valid record/timestamp (zero time if invalid), Bit 1: Visible displayed to web page*)
+		valid : BOOL;
 	END_STRUCT;
 	WebLogBookType : 	STRUCT 
-		ID : STRING[WEBLOG_STRLEN_LOGBOOK];
 		name : STRING[WEBLOG_STRLEN_LOGBOOK];
+		description : STRING[WEBLOG_STRLEN_LOGBOOK];
 		ident : ArEventLogIdentType;
-		r_a : USINT; (*Index of newest record displayed*)
-		r_b : USINT; (*Index of oldest record displayed*)
-		r_0 : USINT; (*Initial index for search loop*)
-		ID_0 : ArEventLogRecordIDType; (*Initial record ID*)
-		skip : BOOL;
-		latestID : ArEventLogRecordIDType;
-		useID : BOOL;
+		search : WebLogBookSearchType;
+	END_STRUCT;
+	WebLogBookSearchType : 	STRUCT 
+		skip : BOOL; (*(search parameter) Skip logbook search*)
+		displayedID : ArEventLogIdentType; (*(display loop) Oldest record displayed from this logbook*)
+		latestID : ArEventLogIdentType; (*(search loop) Newet record found in this logbook*)
+		readID : ArEventLogIdentType; (*(search parameter) Read this record first in search, skip if 0*)
+		referenceID : ArEventLogIdentType; (*(search parameter) Reference this for previous ID, get latest if 0*)
 	END_STRUCT;
 	WebLogRecordDisplayType : 	STRUCT 
 		ID : ArEventLogRecordIDType;

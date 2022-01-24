@@ -23,16 +23,16 @@ long intMin(long a, long b);
 void _INIT ProgramInit(void) {
 	
 	/* Initialize (system) logbook identifiers and their associated names */
-	strcpy(logbook[0].ID, "$arlogsys"); 	strcpy(logbook[0].name, "System");
-	strcpy(logbook[1].ID, "$fieldbus"); 	strcpy(logbook[1].name, "Fieldbus");
-	strcpy(logbook[2].ID, "$arlogconn"); 	strcpy(logbook[2].name, "Connectivity");
-	strcpy(logbook[3].ID, "$textsys"); 		strcpy(logbook[3].name, "Text System");
-	strcpy(logbook[4].ID, "$accsec"); 		strcpy(logbook[4].name, "Access & Security");
-	strcpy(logbook[5].ID, "$visu"); 		strcpy(logbook[5].name, "Visualization");
-	strcpy(logbook[6].ID, "$firewall"); 	strcpy(logbook[6].name, "Firewall");
-	strcpy(logbook[7].ID, "$versinfo"); 	strcpy(logbook[7].name, "Version Info");
-	strcpy(logbook[8].ID, "$diag"); 		strcpy(logbook[8].name, "Diagnostics");
-	strcpy(logbook[9].ID, "$arlogusr"); 	strcpy(logbook[9].name, "User");
+	strcpy(logbook[0].name, "$arlogsys"); 	strcpy(logbook[0].description, "System");
+	strcpy(logbook[1].name, "$fieldbus"); 	strcpy(logbook[1].description, "Fieldbus");
+	strcpy(logbook[2].name, "$arlogconn"); 	strcpy(logbook[2].description, "Connectivity");
+	strcpy(logbook[3].name, "$textsys"); 	strcpy(logbook[3].description, "Text System");
+	strcpy(logbook[4].name, "$accsec"); 	strcpy(logbook[4].description, "Access & Security");
+	strcpy(logbook[5].name, "$visu"); 		strcpy(logbook[5].description, "Visualization");
+	strcpy(logbook[6].name, "$firewall"); 	strcpy(logbook[6].description, "Firewall");
+	strcpy(logbook[7].name, "$versinfo"); 	strcpy(logbook[7].description, "Version Info");
+	strcpy(logbook[8].name, "$diag"); 		strcpy(logbook[8].description, "Diagnostics");
+	strcpy(logbook[9].name, "$arlogusr"); 	strcpy(logbook[9].description, "User");
 	
 	/* Local time change */
 	fbGetLocalTime.enable = true;
@@ -45,7 +45,7 @@ void _INIT ProgramInit(void) {
 	
 	/* Get idents of all logbooks */
 	for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-		strcpy(fbGetIdent.Name, logbook[l].ID); /* Destination size is 257 */
+		strcpy(fbGetIdent.Name, logbook[l].name); /* Destination size is 257 */
 		fbGetIdent.Execute = true;
 		ArEventLogGetIdent(&fbGetIdent);
 		logbook[l].ident = fbGetIdent.Ident; /* Zero if error (arEVENTLOG_ERR_LOGBOOK_NOT_FOUND) */
@@ -64,7 +64,7 @@ void _CYCLIC ProgramCyclic(void)
 	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
 	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp && valid)) && state == 0) {
-		valid = false;
+		valid = false; /* Invalidate until a new record is found */
 		
 		/* 
 		 * Refresh
@@ -73,96 +73,80 @@ void _CYCLIC ProgramCyclic(void)
 		 */
 		if(refresh) {
 			memset(search, 0, sizeof(search)); /* Clear search memory */
-			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				logbook[l].r_0 = 0;
-				logbook[l].ID_0 = 0; /* Get latest record */
-				logbook[l].skip = false;
-				logbook[l].useID = false;
-			}
+			for(l = 0; l < WEBLOG_RECORD_MAX; l++)
+				memset(&logbook[l].search, 0, sizeof(logbook[l].search)); /* Use default logbook search parameters */
 		}
 		
 		/* 
 		 * Down
-		 *   Search for each logbook's older records
-		 *   Abort logbook if ID of oldest record displayed is 1
-		 *   Start with previous record oldest record disayed (r_b.ID - 1)
-		 *   If no records displayed (255), do not update search
+		 *   Search logbooks' older records
+		 *   Use oldest displayedID as referenceID
+		 *   Skip if oldest displayedID is 1
+		 *   Skip if no records displayed, but check if valid
 		 */
 		else if(down) {
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				logbook[l].useID = false;
-				if(logbook[l].r_b == UCHAR_MAX) {
-					/* Maintain search */
-					logbook[l].skip = true;
+				if(logbook[l].search.displayedID == 1) {
+					logbook[l].search.skip = true;
+					memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
+				}
+				else if(logbook[l].search.displayedID == 0) {
+					logbook[l].search.skip = true;
+					/* Maintain search memory */
 					for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
-						if(search[l][r].status & 0x1 == 0x1) {
+						if(search[l][r].valid) {
 							valid = true;
 							break;
 						}
 					}
 				}
-				else if(search[l][logbook[l].r_b].ID == 1) {
-					/* Clear search */
-					memset(search[l], 0, sizeof(search[0]));
-					logbook[l].skip = true;
-				}
 				else {
-					/* Re-search non-displayed records */
-					logbook[l].r_0 = 0;
-					logbook[l].ID_0 = search[l][logbook[l].r_b].ID;
-					memset(search[l], 0, sizeof(search[0]));
-					logbook[l].skip = false;
+					logbook[l].search.skip = false;
+					logbook[l].search.readID = 0; /* Do not directly read */
+					logbook[l].search.referenceID = logbook[l].search.displayedID;
+					memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
 				}
 			}
 		}
 		
 		/* 
 		 * Up
-		 * Check the newest record displayed, try to go up to RECORD_MAX higher (record ID)
-		 * Compare r_a.ID to the newest record found from last refresh latestID
-		 * If using latestID, skip get previous record
-		 * If no records were displayed, they were too old
-		 * 
+		 *   Search WEBLOG_RECORD_MAX newer records than newest record previously searched
+		 *   Saturated by latestID ever found, skip if no records ever found
 		 */
 		else if(up) {
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				/* lastestID is 0? skip */
-				if(logbook[l].latestID == 0) {
-					/* Never been refresh, no records found, unknown logbook */
-					logbook[l].skip = true;
+				if(logbook[l].search.latestID == 0) {
+					logbook[l].search.skip = true;
 				}
-				/* Something displayed? MIN([0].ID + 20, latestID) */
-				else if(search[l][0].ID != 0) {
-					logbook[l].r_0 = 0;
-					logbook[l].ID_0 = intMin(search[l][0].ID + WEBLOG_RECORD_MAX, logbook[l].latestID);
-					logbook[l].skip = false;
-					logbook[l].useID = true;
+				else if(search[l][0].valid) {
+					logbook[l].search.skip = false;
+					logbook[l].search.readID = intMin(search[l][0].ID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+					logbook[l].search.referenceID = 0; /* Do not reference */
 				}
-				/* Nothing displayed? MIN(20, latestID) */
-				else {
-					logbook[l].r_0 = 0;
-					logbook[l].ID_0 = intMin(WEBLOG_RECORD_MAX, logbook[l].latestID);
-					logbook[l].skip = false;
-					logbook[l].useID = true;
+				else { /* No records in previous search */
+					logbook[l].search.skip = false;
+					logbook[l].search.readID = intMin(WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+					logbook[l].search.referenceID = 0; /* Do not reference */
 				}
-				memset(search[l], 0, sizeof(search[0]));
+				memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
 			}
 		}
 		
 		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-			if(!logbook[l].ident || logbook[l].skip) continue; /* Continue to next logbook */
-			for(r = logbook[l].r_0; r < WEBLOG_RECORD_MAX; r++) {
+			if(!logbook[l].ident || logbook[l].search.skip) continue; /* Continue to next logbook */
+			for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
 				/* Find record ID */
-				if(r == 0 && logbook[l].useID) {
-					search[l][r].ID = logbook[l].ID_0;
+				if(r == 0 && logbook[l].search.readID) {
+					search[l][r].ID = logbook[l].search.readID;
 				}
-				else if(r == 0 && logbook[l].ID_0 == 0) { /* Latest record */
+				else if(r == 0 && logbook[l].search.referenceID == 0) { /* Latest record */
 					fbGetLatestRecord.Ident = logbook[l].ident;
 					fbGetLatestRecord.Execute = true;
 					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
 					if(fbGetLatestRecord.Done) {
 						search[l][r].ID = fbGetLatestRecord.RecordID;
-						logbook[l].latestID = fbGetLatestRecord.RecordID;
+						logbook[l].search.latestID = fbGetLatestRecord.RecordID;
 					}
 					/* Reset execution */
 					fbGetLatestRecord.Execute = false;
@@ -170,7 +154,7 @@ void _CYCLIC ProgramCyclic(void)
 				}
 				else { /* Previous record */
 					fbGetPreviousRecord.Ident = logbook[l].ident;
-					if(r == 0) fbGetPreviousRecord.RecordID = logbook[l].ID_0;
+					if(r == 0) fbGetPreviousRecord.RecordID = logbook[l].search.referenceID;
 					else fbGetPreviousRecord.RecordID = search[l][r - 1].ID;
 					fbGetPreviousRecord.Execute = true;
 					ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
@@ -193,7 +177,7 @@ void _CYCLIC ProgramCyclic(void)
 				ArEventLogRead(&fbReadRecord);
 				if(fbReadRecord.StatusID == ERR_OK || fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
 					setTimeBytes((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, search[l][r].time);
-					search[l][r].status |= 0x1; /* Record valid */
+					search[l][r].valid = true;
 				}
 				/* Reset execution */
 				fbReadRecord.Execute = false;
@@ -226,8 +210,7 @@ void _CYCLIC ProgramCyclic(void)
 					memset(display, 0, sizeof(display));
 					
 					for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-						logbook[l].r_a = UCHAR_MAX;
-						logbook[l].r_b = UCHAR_MAX;
+						logbook[l].search.displayedID = 0;
 					}
 					
 					state = 10;
@@ -244,7 +227,7 @@ void _CYCLIC ProgramCyclic(void)
 				dr = si[d] % WEBLOG_RECORD_MAX;
 				
 				/* Check if valid */
-				if((search[dl][dr].status & 1) != 1) {
+				if(!search[dl][dr].valid) {
 					display[d].severity = 10; /* Give invalid severity to avoid displaying "Success" */
 					if(d >= WEBLOG_RECORD_MAX - 1) {
 						state = 201;
@@ -253,7 +236,7 @@ void _CYCLIC ProgramCyclic(void)
 					continue; /* Skip this record because it is invalid */
 				}
 				
-				strncpy(display[d].logbook, logbook[dl].name, WEBLOG_STRLEN_LOGBOOK);
+				strncpy(display[d].logbook, logbook[dl].description, WEBLOG_STRLEN_LOGBOOK);
 				display[d].logbook[WEBLOG_STRLEN_LOGBOOK] = '\0';
 				
 				display[d].ID = search[dl][dr].ID; /* Copy record ID */
@@ -338,10 +321,7 @@ void _CYCLIC ProgramCyclic(void)
 			
 			/* Record done */
 			case 200:
-				search[dl][dr].status |= 0x2;
-				
-				if(logbook[dl].r_a == UCHAR_MAX) logbook[dl].r_a = dr; /* Newest (timestamp) record displayed */
-				logbook[dl].r_b = dr; /* Oldest (timestamp) record displayed */
+				logbook[dl].search.displayedID = search[dl][dr].ID; /* Remember oldest record displayed */
 				
 				if(d < WEBLOG_RECORD_MAX - 1) {
 					state = 10;
