@@ -1,11 +1,11 @@
 /*******************************************************************************
- * File:      WebLog\Main.c
+ * File:      WebLog\WebLog.c
  * Author:    Tyler Matijevich
  * Created:   2022-01-05
 ********************************************************************************
- * Use ArEventLog to read, collect, and sort logbook records to display on 
-   web page
-*******************************************************************************/ 
+ * Description: Use ArEventLog to read, collect, and sort logbook records for
+   display on web page
+*******************************************************************************/
 
 #define _REPLACE_CONST /* Replace PLC constants with define macros instead of const storage modifier */
 #include <AsDefault.h>
