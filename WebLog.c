@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <limits.h>
+#include "WebLog.h"
 
 /* Function prototypes */
 void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
