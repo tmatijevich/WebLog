@@ -66,6 +66,7 @@ void _CYCLIC ProgramCyclic(void)
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
 	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp)) && state == 0) {
 		valid = false; /* Invalidate until a new record is found */
+		memset(search, 0, sizeof(search)); /* Clear search memory */
 		
 		/* 
 		 * Refresh
@@ -73,71 +74,100 @@ void _CYCLIC ProgramCyclic(void)
 		 *   Read latest RECORD_MAX records
 		 */
 		if(refresh) {
-			memset(search, 0, sizeof(search)); /* Clear search memory */
-			for(l = 0; l < WEBLOG_RECORD_MAX; l++)
-				memset(&logbook[l].search, 0, sizeof(logbook[l].search)); /* Use default logbook search parameters */
+			for(l = 0; l < WEBLOG_RECORD_MAX; l++) {
+				/* Clear search parameters */
+				logbook[l].search.skip = false;
+				logbook[l].search.readID = 0;
+				logbook[l].search.referenceID = 0;
+				logbook[l].search.skipID = 0;
+			}
+			prevCmd = 0;
 		}
 		
-		/* 
-		 * Down
-		 *   Search logbooks' older records
-		 *   Use oldest displayedID as referenceID
-		 *   Skip if oldest displayedID is 1
-		 *   Skip if no records displayed, but check if valid
-		 */
-		else if(down) {
+		else if(down) { 
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				if(logbook[l].search.displayedID == 1) {
-					logbook[l].search.skip = true;
-					memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
-				}
-				else if(logbook[l].search.displayedID == 0) {
-					logbook[l].search.skip = true;
-					/* Maintain search memory */
-					for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
-						if(search[l][r].valid) {
-							valid = true;
-							break;
-						}
+				if(prevCmd == 0 || prevCmd == 1) { /* Newest search is displayed */
+					/* Search past oldest record displayed */
+					if(logbook[l].search.oldestSearchID == 0) { /* Empty (end) */
+						logbook[l].search.skip = true;
+					}
+					else if(logbook[l].search.oldestDisplayID == 0) {
+						/* Re-read newest search */
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = 0;
+						logbook[l].search.readID = logbook[l].search.newestSearchID; /* Older than what else is displayed */
+						logbook[l].search.referenceID = 0;
+					}
+					else {
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = 0;
+						logbook[l].search.readID = 0;
+						logbook[l].search.referenceID = logbook[l].search.oldestDisplayID;
 					}
 				}
-				else {
-					logbook[l].search.skip = false;
-					logbook[l].search.readID = 0; /* Do not directly read */
-					logbook[l].search.skipID = 0;
-					logbook[l].search.referenceID = logbook[l].search.displayedID;
-					memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
+				else { /* Oldest search is displayed */
+					if(logbook[l].search.oldestSearchID = 0) { /* Empty (beginning) */
+						/* Read the latest */
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = 0;
+						logbook[l].search.readID = logbook[l].search.latestID;
+						logbook[l].search.referenceID = 0;
+					}
+					else {
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = 0;
+						logbook[l].search.readID = 0;
+						logbook[l].search.referenceID = logbook[l].search.oldestDisplayID;
+					}
 				}
 			}
+			prevCmd = 1;
 		}
 		
-		/* 
-		 * Up
-		 *   Search WEBLOG_RECORD_MAX newer records than newest record previously searched
-		 *   Saturated by latestID ever found, skip if no records ever found
-		 */
 		else if(up) {
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				if(logbook[l].search.latestID == 0 || logbook[l].search.latestID == search[l][0].ID) {
-					logbook[l].search.skip = true;
+				if(prevCmd == 0 || prevCmd == 1) { /* Newest search is displayed */
+					if(logbook[l].search.newestSearchID == logbook[l].search.latestID) {
+						logbook[l].search.skip = true;
+					}
+					else {
+						/* Search above newest search */
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = logbook[l].search.newestSearchID;
+						logbook[l].search.readID = intMin(logbook[l].search.newestSearchID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+						logbook[l].search.referenceID = 0;
+					}
 				}
-				else if(search[l][0].valid) {
-					logbook[l].search.skip = false;
-					logbook[l].search.readID = intMin(search[l][0].ID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
-					logbook[l].search.skipID = search[l][0].ID;
-					logbook[l].search.referenceID = 0; /* Do not reference */
+				else { /* Oldest search is displayed */
+					/* Search above newest displayed */
+					if(logbook[l].search.newestSearchID == 0) { /* Empty (beginning) */
+						logbook[l].search.skip = true;
+					}
+					else if(logbook[l].search.newestDisplayID == 0) {
+						/* Re-read newest search */
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = 0;
+						logbook[l].search.readID = logbook[l].search.newestSearchID; /* Newer than what else is displayed */
+						logbook[l].search.referenceID = 0;
+					}
+					/* Check if newest displayed if latest */
+					else if(logbook[l].search.newestDisplayID == logbook[l].search.latestID) {
+						logbook[l].search.skip = true;
+					}
+					else {
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = logbook[l].search.newestDisplayID;
+						logbook[l].search.readID = intMin(logbook[l].search.newestDisplayID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+						logbook[l].search.referenceID = 0;
+					}
 				}
-				else { /* No records in previous search */
-					logbook[l].search.skip = false;
-					logbook[l].search.readID = intMin(WEBLOG_RECORD_MAX, logbook[l].search.latestID);
-					logbook[l].search.skipID = 0;
-					logbook[l].search.referenceID = 0; /* Do not reference */
-				}
-				memset(search[l], 0, sizeof(search[l])); /* Clear search memory */
 			}
+			prevCmd = 2;
 		}
 		
 		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+			logbook[l].search.newestSearchID = 0;
+			logbook[l].search.oldestSearchID = 0;
 			if(!logbook[l].ident || logbook[l].search.skip) continue; /* Continue to next logbook */
 			for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
 				if(r > 0 && logbook[l].search.skipID > 0) {
@@ -193,6 +223,8 @@ void _CYCLIC ProgramCyclic(void)
 				fbReadRecord.Execute = false;
 				ArEventLogRead(&fbReadRecord);
 				
+				if(r == 0) logbook[l].search.newestSearchID = search[l][r].ID;
+				logbook[l].search.oldestSearchID = search[l][r].ID;
 				valid = true;
 				
 			} /* Record loop */
@@ -228,16 +260,17 @@ void _CYCLIC ProgramCyclic(void)
 			/* Client request */
 			case 0:
 				if((refresh && !prevRefresh) || (down && !prevDown) || (up && !prevUp)) {
+					for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+						logbook[l].search.newestDisplayID = 0;
+						logbook[l].search.oldestDisplayID = 0;
+					}
+					
 					if(!valid) {
 						state = 201;
 						break;
 					}
 				
 					memset(display, 0, sizeof(display));
-					
-					for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-						logbook[l].search.displayedID = 0;
-					}
 					
 					state = 10;
 					/* Do not break, proceed to next case */
@@ -347,7 +380,8 @@ void _CYCLIC ProgramCyclic(void)
 			
 			/* Record done */
 			case 200:
-				logbook[dl].search.displayedID = search[dl][dr].ID; /* Remember oldest record displayed */
+				if(dr == 0) logbook[dl].search.newestDisplayID = display[d].ID;
+				logbook[dl].search.oldestDisplayID = display[d].ID;
 				
 				if(d < WEBLOG_RECORD_MAX - 1) {
 					state = 10;

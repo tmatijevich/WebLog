@@ -21,6 +21,7 @@ VAR
 	prevRefresh : BOOL;
 	prevDown : BOOL;
 	prevUp : BOOL;
+	prevCmd : USINT;
 END_VAR
 (*Search and sort*)
 VAR
