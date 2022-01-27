@@ -10,7 +10,7 @@
 #include <string.h>
 
 /* Sort n elements of k bytes using LSB radix sort */
-void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending) {
+void radix_sort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending) {
 	
 	/* 
 	 * in:         Array of n pointers each pointing to array of k bytes (descructive)

@@ -7,22 +7,30 @@
    display on web page
 *******************************************************************************/
 
-#define _REPLACE_CONST /* Replace PLC constants with define macros instead of const storage modifier */
-#include <AsDefault.h>
-#include <string.h>
-#include <stdbool.h>
-#include <limits.h>
 #include "WebLog.h"
 
-/* Function prototypes */
-void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
-void replaceQuotes(char *str);
-void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
-long intMin(long a, long b);
-long intMax(long a, long b);
+/* Variable declaration */
+_LOCAL unsigned char refresh, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd;
+unsigned char l, r;
+struct weblog_logbook_typ logbook[WEBLOG_LOGBOOK_MAX];
+struct weblog_recordsearch_typ search[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
+unsigned char state, d, d0, dl, dr;
+_LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
+unsigned short s, displayOffset, unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
+unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
 
-/* Program initialization routine */
-void _INIT ProgramInit(void) {
+/* Function block instances */
+ArEventLogGetIdent_typ fbGetIdent;
+ArEventLogGetLatestRecordID_typ fbGetLatestRecord;
+ArEventLogGetPreviousRecordID_typ fbGetPreviousRecord;
+ArEventLogRead_typ fbReadRecord;
+ArEventLogReadErrorNumber_typ fbReadErrorNumber;
+ArEventLogReadDescription_typ fbReadDescription;
+ArEventLogReadAddData_typ fbReadAsciiData;
+ArEventLogReadObjectID_typ fbReadObjectName;
+
+/* Initialization routine */
+void _INIT program_init(void) {
 	
 	/* Initialize (system) logbook identifiers and their associated names */
 	strcpy(logbook[0].name, "$arlogsys"); 	strcpy(logbook[0].description, "System");
@@ -36,15 +44,6 @@ void _INIT ProgramInit(void) {
 	strcpy(logbook[8].name, "$diag"); 		strcpy(logbook[8].description, "Diagnostics");
 	strcpy(logbook[9].name, "$arlogusr"); 	strcpy(logbook[9].description, "User");
 	
-	/* Local time change */
-	fbGetLocalTime.enable = true;
-	DTGetTime(&fbGetLocalTime);
-	
-	fbGetUtcTime.enable = true;
-	UtcDTGetTime(&fbGetUtcTime);
-	
-	utcToLocalOffset = ((long)(fbGetLocalTime.DT1 - fbGetUtcTime.DT1) / 3600L) * 3600L;
-	
 	/* Get idents of all logbooks */
 	for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
 		strcpy(fbGetIdent.Name, logbook[l].name); /* Destination size is 257 */
@@ -57,13 +56,9 @@ void _INIT ProgramInit(void) {
 	
 }
 
-/* Main cyclic routine */
-void _CYCLIC ProgramCyclic(void)
+/* Cyclic routine */
+void _CYCLIC program_cyclic(void)
 {	
-	/* Declare local variables */
-	unsigned char *input[WEBLOG_SORT_MAX], *output[WEBLOG_SORT_MAX];
-	//unsigned short ai[WEBLOG_SORT_MAX], si[WEBLOG_SORT_MAX];
-	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
 	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp)) && state == 0) {
 		valid = false; /* Invalidate until a new record is found */
@@ -107,7 +102,7 @@ void _CYCLIC ProgramCyclic(void)
 					}
 				}
 				else { /* Oldest search is displayed */
-					if(logbook[l].search.oldestSearchID = 0) { /* Empty (beginning) */
+					if(logbook[l].search.oldestSearchID == 0) { /* Empty (beginning) */
 						/* Read the latest */
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = 0;
@@ -135,7 +130,7 @@ void _CYCLIC ProgramCyclic(void)
 						/* Search above newest search */
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = logbook[l].search.newestSearchID;
-						logbook[l].search.readID = intMin(logbook[l].search.newestSearchID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+						logbook[l].search.readID = MIN(logbook[l].search.newestSearchID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
 						logbook[l].search.referenceID = 0;
 					}
 				}
@@ -158,7 +153,7 @@ void _CYCLIC ProgramCyclic(void)
 					else {
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = logbook[l].search.newestDisplayID;
-						logbook[l].search.readID = intMin(logbook[l].search.newestDisplayID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+						logbook[l].search.readID = MIN(logbook[l].search.newestDisplayID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
 						logbook[l].search.referenceID = 0;
 					}
 				}
@@ -217,7 +212,7 @@ void _CYCLIC ProgramCyclic(void)
 				fbReadRecord.Execute = true;
 				ArEventLogRead(&fbReadRecord);
 				if(fbReadRecord.StatusID == ERR_OK || fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID) {
-					setTimeBytes((unsigned long)((long)fbReadRecord.TimeStamp.sec + utcToLocalOffset), fbReadRecord.TimeStamp.nsec, search[l][r].time);
+					order_time_bytes((unsigned long)fbReadRecord.TimeStamp.sec, fbReadRecord.TimeStamp.nsec, search[l][r].time);
 					search[l][r].valid = true;
 				}
 				/* Reset execution */
@@ -233,19 +228,19 @@ void _CYCLIC ProgramCyclic(void)
 		
 		/* Sort through searched records */
 		for(s = 0; s < WEBLOG_SORT_MAX; s++) {
-			output[s] = input[s] = search[s / WEBLOG_RECORD_MAX][(WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX].time;
-			si[s] = ai[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
+			sortedBytes[s] = unsortedBytes[s] = search[s / WEBLOG_RECORD_MAX][(WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX].time;
+			sortedIndices[s] = unsortedIndices[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
 		}
-		radixSort(input, ai, output, si, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
+		radix_sort(unsortedBytes, unsortedIndices, sortedBytes, sortedIndices, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
 		
 		/* Get the last WEBLOG_RECORD_MAX records of valid sorted records */
 		if(up) {
 			for(s = 0; s < WEBLOG_SORT_MAX; s++) {
-				dl = si[s] / WEBLOG_RECORD_MAX;
-				dr = si[s] % WEBLOG_RECORD_MAX;
+				dl = sortedIndices[s] / WEBLOG_RECORD_MAX;
+				dr = sortedIndices[s] % WEBLOG_RECORD_MAX;
 				if(!search[dl][dr].valid) {
 					/* Find the first invalid sorted record, then look RECORD_MAX entries up */
-					displayOffset = intMax(s - WEBLOG_RECORD_MAX, 0);
+					displayOffset = MAX(s - WEBLOG_RECORD_MAX, 0);
 					break;
 				}
 			}
@@ -283,8 +278,8 @@ void _CYCLIC ProgramCyclic(void)
 				
 			/* EventID/ErrorNumber, Severity (Code, Facility), Timestamp */
 			case 10:
-				dl = si[displayOffset + d] / WEBLOG_RECORD_MAX;
-				dr = si[displayOffset + d] % WEBLOG_RECORD_MAX;
+				dl = sortedIndices[displayOffset + d] / WEBLOG_RECORD_MAX;
+				dr = sortedIndices[displayOffset + d] % WEBLOG_RECORD_MAX;
 				
 				/* Check if valid */
 				if(!search[dl][dr].valid) {
@@ -326,7 +321,7 @@ void _CYCLIC ProgramCyclic(void)
 				}
 				
 				/* Timestamp */
-				display[d].sec = fbReadRecord.TimeStamp.sec + utcToLocalOffset;
+				display[d].sec = fbReadRecord.TimeStamp.sec;
 				display[d].nsec = fbReadRecord.TimeStamp.nsec;
 				
 				fbReadRecord.Execute = false;
@@ -349,7 +344,7 @@ void _CYCLIC ProgramCyclic(void)
 				}
 				fbReadDescription.Execute = false;
 				ArEventLogReadDescription(&fbReadDescription);
-				replaceQuotes(display[d].description);
+				replace_char(display[d].description, '"', ' ');
 				state = 30;
 				/* Do not break case */
 			
@@ -363,7 +358,7 @@ void _CYCLIC ProgramCyclic(void)
 				ArEventLogReadAddData(&fbReadAsciiData);
 				fbReadAsciiData.Execute = false;
 				ArEventLogReadAddData(&fbReadAsciiData);
-				replaceQuotes(display[d].asciiData);
+				replace_char(display[d].asciiData, '"', ' ');
 				
 				fbReadObjectName.Ident = logbook[dl].ident;
 				fbReadObjectName.RecordID = display[d].ID;
@@ -412,13 +407,8 @@ void _CYCLIC ProgramCyclic(void)
 	
 }
 
-void _EXIT ProgramExit(void)
-{
-
-}
-
 /* Format sortable time data */
-void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
+void order_time_bytes(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
 	const int val = 1;
 	unsigned char i;
 	/* 0-3 seconds 4-7 nanoseconds (big endian) */
@@ -428,22 +418,11 @@ void setTimeBytes(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
 	}
 }
 
-
 /* Replace quotes which are invalid in JSON value */
-void replaceQuotes(char *str) {
+void replace_char(char *str, char find, char replace) {
 	unsigned char i = 0;
 	while(str[i] && i < UCHAR_MAX) {
-		if(str[i] == '"') str[i] = ' ';
+		if(str[i] == find) str[i] = replace;
 		i++;
 	}
-}
-
-/* Integer minimum */
-long intMin(long a, long b) {
-	return a > b ? b : a;
-}
-
-/* Integer maximum */
-long intMax(long a, long b) {
-	return a > b ? a : b;
 }
