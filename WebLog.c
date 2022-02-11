@@ -10,9 +10,9 @@
 #include "WebLog.h"
 
 /* Variable declaration */
-_LOCAL unsigned char refresh, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd;
+_LOCAL unsigned char refresh, refreshed, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd;
 unsigned char l, r;
-struct weblog_logbook_typ logbook[WEBLOG_LOGBOOK_MAX];
+_LOCAL struct weblog_logbook_typ logbook[WEBLOG_LOGBOOK_MAX];
 struct weblog_recordsearch_typ search[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
 unsigned char state, d, d0, dl, dr;
 _LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
@@ -34,15 +34,16 @@ void _INIT program_init(void) {
 	
 	/* Initialize (system) logbook identifiers and their associated names */
 	strcpy(logbook[0].name, "$arlogsys"); 	strcpy(logbook[0].description, "System");
-	strcpy(logbook[1].name, "$fieldbus"); 	strcpy(logbook[1].description, "Fieldbus");
-	strcpy(logbook[2].name, "$arlogconn"); 	strcpy(logbook[2].description, "Connectivity");
-	strcpy(logbook[3].name, "$textsys"); 	strcpy(logbook[3].description, "Text System");
-	strcpy(logbook[4].name, "$accsec"); 	strcpy(logbook[4].description, "Access & Security");
-	strcpy(logbook[5].name, "$visu"); 		strcpy(logbook[5].description, "Visualization");
-	strcpy(logbook[6].name, "$firewall"); 	strcpy(logbook[6].description, "Firewall");
-	strcpy(logbook[7].name, "$versinfo"); 	strcpy(logbook[7].description, "Version Info");
-	strcpy(logbook[8].name, "$diag"); 		strcpy(logbook[8].description, "Diagnostics");
-	strcpy(logbook[9].name, "$arlogusr"); 	strcpy(logbook[9].description, "User");
+	strcpy(logbook[1].name, "$arlogusr"); 	strcpy(logbook[1].description, "User");
+//	strcpy(logbook[1].name, "$fieldbus"); 	strcpy(logbook[1].description, "Fieldbus");
+//	strcpy(logbook[2].name, "$arlogconn"); 	strcpy(logbook[2].description, "Connectivity");
+//	strcpy(logbook[3].name, "$textsys"); 	strcpy(logbook[3].description, "Text System");
+//	strcpy(logbook[4].name, "$accsec"); 	strcpy(logbook[4].description, "Access & Security");
+//	strcpy(logbook[5].name, "$visu"); 		strcpy(logbook[5].description, "Visualization");
+//	strcpy(logbook[6].name, "$firewall"); 	strcpy(logbook[6].description, "Firewall");
+//	strcpy(logbook[7].name, "$versinfo"); 	strcpy(logbook[7].description, "Version Info");
+//	strcpy(logbook[8].name, "$diag"); 		strcpy(logbook[8].description, "Diagnostics");
+//	strcpy(logbook[9].name, "$arlogusr"); 	strcpy(logbook[9].description, "User");
 	
 	/* Get idents of all logbooks */
 	for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
@@ -54,13 +55,15 @@ void _INIT program_init(void) {
 		ArEventLogGetIdent(&fbGetIdent);
 	}
 	
+	refreshed = false;
 }
 
 /* Cyclic routine */
 void _CYCLIC program_cyclic(void)
 {	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
-	if(((refresh && !prevRefresh) || (down && !prevDown && valid) || (up && !prevUp)) && state == 0) {
+	if(((refresh && !prevRefresh) || (down && !prevDown && refreshed) || (up && !prevUp && refreshed)) && state == 0) {
+		refreshed = true;
 		valid = false; /* Invalidate until a new record is found */
 		memset(search, 0, sizeof(search)); /* Clear search memory */
 		
@@ -140,10 +143,10 @@ void _CYCLIC program_cyclic(void)
 						logbook[l].search.skip = true;
 					}
 					else if(logbook[l].search.newestDisplayID == 0) {
-						/* Re-read newest search */
+						/* Re-read same search */
 						logbook[l].search.skip = false;
-						logbook[l].search.skipID = 0;
-						logbook[l].search.readID = logbook[l].search.newestSearchID; /* Newer than what else is displayed */
+						logbook[l].search.skipID = logbook[l].search.oldestSearchID - 1; 
+						logbook[l].search.readID = logbook[l].search.newestSearchID; 
 						logbook[l].search.referenceID = 0;
 					}
 					/* Check if newest displayed if latest */
@@ -376,7 +379,7 @@ void _CYCLIC program_cyclic(void)
 			
 			/* Record done */
 			case 200:
-				if(dr == 0) logbook[dl].search.newestDisplayID = display[d].ID;
+				if(logbook[dl].search.newestDisplayID == 0) logbook[dl].search.newestDisplayID = display[d].ID;
 				logbook[dl].search.oldestDisplayID = display[d].ID;
 				
 				if(d < WEBLOG_RECORD_MAX - 1) {
