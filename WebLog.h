@@ -22,12 +22,12 @@
 #include <limits.h>
 
 /* User constants */
-#define WEBLOG_RECORD_MAX 20
-#define WEBLOG_LOGBOOK_MAX 10
+#define WEBLOG_RECORD_MAX 20U
+#define WEBLOG_LOGBOOK_MAX 10U
 #define WEBLOG_SORT_MAX (WEBLOG_RECORD_MAX * WEBLOG_LOGBOOK_MAX)
-#define WEBLOG_STRLEN_LOGBOOK 36
-#define WEBLOG_STRLEN_DESCRIPTION 125
-#define WEBLOG_BYTE_MAX 8
+#define WEBLOG_STRLEN_LOGBOOK 36U
+#define WEBLOG_STRLEN_DESCRIPTION 125U
+#define WEBLOG_BYTE_MAX 8U
 
 /* Other macros */
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))

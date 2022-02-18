@@ -10,11 +10,12 @@
 #include "WebLog.h"
 
 /* Variable declaration */
-_LOCAL unsigned char refresh, refreshed, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd;
+_LOCAL unsigned char refresh, refreshed, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd, prevValid;
+_LOCAL long tableOffset;
 unsigned char l, r;
 _LOCAL struct weblog_logbook_typ logbook[WEBLOG_LOGBOOK_MAX];
 struct weblog_recordsearch_typ search[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
-unsigned char state, d, d0, dl, dr;
+unsigned char state, d, d0, dl, dr, displayCount;
 _LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
 unsigned short s, displayOffset, unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
 unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
@@ -56,6 +57,8 @@ void _INIT program_init(void) {
 	}
 	
 	refreshed = false;
+	tableOffset = 0;
+	displayCount = 0;
 }
 
 /* Cyclic routine */
@@ -116,7 +119,7 @@ void _CYCLIC program_cyclic(void)
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = 0;
 						logbook[l].search.readID = 0;
-						logbook[l].search.referenceID = logbook[l].search.oldestDisplayID;
+						logbook[l].search.referenceID = logbook[l].search.oldestSearchID;
 					}
 				}
 			}
@@ -124,10 +127,20 @@ void _CYCLIC program_cyclic(void)
 		}
 		
 		else if(up) {
+			/* Find newer searches */
 			for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-				if(prevCmd == 0 || prevCmd == 1) { /* Newest search is displayed */
+				if(prevCmd == 0 || prevCmd == 1) { 
+					/* Newest searches were displayed (search above newestSearchID) */
 					if(logbook[l].search.newestSearchID == logbook[l].search.latestID) {
+						/* Nothing new to search */
 						logbook[l].search.skip = true;
+					}
+					else if(logbook[l].search.newestSearchID == 0) {
+						/* Empty (end) */
+						logbook[l].search.skip = false;
+						logbook[l].search.skipID = logbook[l].search.newestSearchID;
+						logbook[l].search.readID = MIN(logbook[l].search.newestSearchID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
+						logbook[l].search.referenceID = 0;
 					}
 					else {
 						/* Search above newest search */
@@ -137,23 +150,25 @@ void _CYCLIC program_cyclic(void)
 						logbook[l].search.referenceID = 0;
 					}
 				}
-				else { /* Oldest search is displayed */
-					/* Search above newest displayed */
-					if(logbook[l].search.newestSearchID == 0) { /* Empty (beginning) */
+				else { 
+					/* Oldest searches were displayed (search above newestDisplayID) */
+					if(logbook[l].search.newestSearchID == 0) { 
+						/* Empty (beginning) */
 						logbook[l].search.skip = true;
 					}
 					else if(logbook[l].search.newestDisplayID == 0) {
-						/* Re-read same search */
+						/* Repeat search */
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = logbook[l].search.oldestSearchID - 1; 
 						logbook[l].search.readID = logbook[l].search.newestSearchID; 
 						logbook[l].search.referenceID = 0;
 					}
-					/* Check if newest displayed if latest */
 					else if(logbook[l].search.newestDisplayID == logbook[l].search.latestID) {
+						/* Nothing new to search */
 						logbook[l].search.skip = true;
 					}
 					else {
+						/* Search above newestDisplayID */
 						logbook[l].search.skip = false;
 						logbook[l].search.skipID = logbook[l].search.newestDisplayID;
 						logbook[l].search.readID = MIN(logbook[l].search.newestDisplayID + WEBLOG_RECORD_MAX, logbook[l].search.latestID);
@@ -268,6 +283,20 @@ void _CYCLIC program_cyclic(void)
 						state = 201;
 						break;
 					}
+					
+					switch(prevCmd) {
+						case 0: 
+							tableOffset = 0;
+							break;
+						case 1: 
+							tableOffset += WEBLOG_RECORD_MAX;
+							break;
+						case 2: 
+							tableOffset = prevValid ? tableOffset - WEBLOG_RECORD_MAX : tableOffset + displayCount - WEBLOG_RECORD_MAX; 
+							if(tableOffset < 0) tableOffset = 0;
+							break;
+					}
+					displayCount = 0;
 				
 					memset(display, 0, sizeof(display));
 					
@@ -293,6 +322,7 @@ void _CYCLIC program_cyclic(void)
 					}
 					continue; /* Skip this record because it is invalid */
 				}
+				displayCount++;
 				
 				strncpy(display[d].logbook, logbook[dl].description, WEBLOG_STRLEN_LOGBOOK);
 				display[d].logbook[WEBLOG_STRLEN_LOGBOOK] = '\0';
@@ -407,6 +437,7 @@ void _CYCLIC program_cyclic(void)
 	prevRefresh = refresh;
 	prevDown = down;
 	prevUp = up;
+	prevValid = valid;
 	
 }
 
