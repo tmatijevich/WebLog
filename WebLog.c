@@ -12,13 +12,15 @@
 /* Variable declaration */
 _LOCAL unsigned char refresh, refreshed, down, up, done, valid, prevRefresh, prevDown, prevUp, prevCmd, prevValid;
 _LOCAL long tableOffset;
-unsigned char l, r;
+long l, r;
 _LOCAL struct weblog_logbook_typ logbook[WEBLOG_LOGBOOK_MAX];
 struct weblog_recordsearch_typ search[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
 unsigned char state, d, d0, dl, dr, displayCount;
 _LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
 unsigned short s, displayOffset, unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
 unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
+enum webLogCommandEnum command, previousCommand;
+_LOCAL struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
 
 /* Function block instances */
 ArEventLogGetIdent_typ fbGetIdent;
@@ -64,6 +66,154 @@ void _INIT program_init(void) {
 /* Cyclic routine */
 void _CYCLIC program_cyclic(void)
 {	
+	/* Accept user command */
+	if(refresh && !prevRefresh)
+		command = WEBLOG_COMMAND_REFRESH;
+	else if(down && !prevDown && refreshed)
+		command = WEBLOG_COMMAND_DOWN;
+	else if(up && !prevUp && refreshed)
+		command = WEBLOG_COMMAND_UP;
+	
+	/* Prepare Search Parameters */
+	switch(command) {
+		case WEBLOG_COMMAND_REFRESH:
+			break;
+		case WEBLOG_COMMAND_DOWN:
+			/* Search past oldest displayed record */
+			
+			if(previousCommand == WEBLOG_COMMAND_REFRESH || previousCommand == WEBLOG_COMMAND_DOWN) {
+				/* Newest searched records were displayed */
+				
+				for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+					/* 1. Empty search */
+					if(book[l].search.newestID == 0) {
+						book[l].search.skip = true;
+					}
+					
+					/* 2. Nothing displayed */
+					else if(book[l].display.newestID == 0) {
+						book[l].search.startID = book[l].search.newestID;
+					}
+					
+					/* 3. Oldest displayed record ID is 1 */
+					else if(book[l].display.oldestID == 1) {
+						book[l].search.skip = true;
+					}
+					
+					/* 4. Start search after the oldest displayed */
+					else {
+						book[l].search.nextID = book[l].display.oldestID;
+					}
+					
+				} /* Loop logbooks */
+			} /* Continue down */
+			
+			else { /* Previously up */
+				/* Oldest searched records were displayed */
+				
+				for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+					/* 1. Empty search */
+					if(book[l].search.newestID == 0) {
+						if(book[l].latestID) {
+							book[l].search.startID = book[l].latestID;
+						}
+						else {
+							book[l].search.skip = true;
+						}
+					}
+					
+					/* 2. Oldest searched record ID is 1 */
+					else if(book[l].search.oldestID == 1) {
+						book[l].search.skip = true;
+					}
+					
+					/* 3. Nothing displayed */
+					else if(book[l].display.newestID == 0) {
+						book[l].search.nextID = book[l].search.oldestID;
+					}
+					
+					/* 4. Start search after the oldest searched record */
+					else {
+						book[l].search.nextID = book[l].search.oldestID;
+					}
+					
+				} /* Loop logbooks */
+			} /* Up then down */
+			
+			break;
+			
+		case WEBLOG_COMMAND_UP:
+			/* Search above newest displayed record */
+			
+			if(previousCommand == WEBLOG_COMMAND_REFRESH || previousCommand == WEBLOG_COMMAND_DOWN) {
+				/* Newest searched records were displayed */
+				
+				for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+					/* 1. Empty search */
+					if(book[l].search.newestID == 0) {
+						if(book[l].latestID) {
+							book[l].search.startID = MIN(WEBLOG_RECORD_MAX, book[l].latestID);
+						}
+						else {
+							book[l].search.skip = true;
+						}
+					}
+					
+					/* 2. Newest searched record ID is latest */
+					else if(book[l].search.newestID == book[l].latestID) {
+						book[l].search.skip = true;
+					}
+					
+					/* 3. Nothing displayed */
+					else if(book[l].display.newestID == 0) {
+						book[l].search.startID = MIN(book[l].search.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
+						book[l].search.stopID = book[l].search.newestID;
+					}
+					
+					/* 4. Search above the newest searched record */
+					else {
+						book[l].search.startID = MIN(book[l].search.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
+						book[l].search.stopID = book[l].search.newestID;
+					}
+				
+				} /* Loop logbooks */
+			} /* Down then up */
+			
+			else { /* Previously up */
+				/* Oldest searched records were displayed */
+				
+				for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+					/* 1. Empty search */
+					if(book[l].search.newestID == 0) {
+						book[l].search.skip = true;
+					}
+					
+					/* 2. Nothing displayed */
+					else if(book[l].display.newestID == 0) {
+						book[l].search.startID = book[l].search.newestID;
+						book[l].search.stopID = book[l].search.oldestID - 1;
+					}
+					
+					/* 3. Newest record displayed is latest */
+					else if(book[l].display.newestID == book[l].latestID) {
+						book[l].search.skip = true;
+					}
+					
+					/* 4. Search above the newest displayed record */
+					else {
+						book[l].search.startID = MIN(book[l].display.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
+						book[l].search.stopID = book[l].display.newestID;
+					}
+					
+				} /* Loop logbooks */
+			} /* Continue up */
+			
+			break;
+		default:
+			/* Do nothing */
+			break;
+	}
+	
 	/* Search RECORD_MAX records in each LOGBOOK_MAX logbooks */
 	if(((refresh && !prevRefresh) || (down && !prevDown && refreshed) || (up && !prevUp && refreshed)) && state == 0) {
 		refreshed = true;

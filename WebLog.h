@@ -21,7 +21,7 @@
 #include <stdbool.h>
 #include <limits.h>
 
-/* User constants */
+/* Constants */
 #define WEBLOG_RECORD_MAX 20U
 #define WEBLOG_LOGBOOK_MAX 10U
 #define WEBLOG_SORT_MAX (WEBLOG_RECORD_MAX * WEBLOG_LOGBOOK_MAX)
@@ -29,9 +29,42 @@
 #define WEBLOG_STRLEN_DESCRIPTION 125U
 #define WEBLOG_BYTE_MAX 8U
 
-/* Other macros */
+/* Macros */
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+
+/* Structures */
+struct webLogBookSearchType {
+	unsigned char count; /* Count how many records have been searched */
+	unsigned char skip; /* Skip search on this logbook */
+    ArEventLogRecordIDType newestID; /* Newest searched ID (zero if empty search) */
+	ArEventLogRecordIDType oldestID; /* Oldest searched ID (zero if empty search) */
+	ArEventLogRecordIDType startID; /* Start search with this ID (search for latest if zero) */
+	ArEventLogRecordIDType nextID; /* Start search with previous record after this ID (startID must be zero) */
+	ArEventLogRecordIDType stopID; /* Stop search at this ID if searched */
+};
+
+struct webLogBookDisplayType {
+	unsigned char count;
+	ArEventLogRecordIDType newestID; 
+	ArEventLogRecordIDType oldestID;
+};
+
+struct webLogBookType {
+	plcstring name[WEBLOG_STRLEN_LOGBOOK + 1]; /* Must use plcstring for client WebPrint call */
+	plcstring description[WEBLOG_STRLEN_DESCRIPTION + 1]; /* User readable description alternative to name */
+	ArEventLogIdentType ident;
+	ArEventLogRecordIDType latestID;
+	struct webLogBookSearchType search;
+	struct webLogBookDisplayType display;
+};
+
+/* Enumerations */
+enum webLogCommandEnum {
+	WEBLOG_COMMAND_REFRESH,
+	WEBLOG_COMMAND_DOWN,
+	WEBLOG_COMMAND_UP
+};
 
 /* User structures */
 struct weblog_recordsearch_typ {
