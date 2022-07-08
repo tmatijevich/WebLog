@@ -59,8 +59,14 @@ struct webLogBookType {
 	struct webLogBookDisplayType display;
 };
 
+struct webLogRecordSearchType {
+	ArEventLogRecordIDType ID;
+	unsigned char time[WEBLOG_BYTE_MAX];
+};
+
 /* Enumerations */
 enum webLogCommandEnum {
+	WEBLOG_COMMAND_NONE = 0,
 	WEBLOG_COMMAND_REFRESH,
 	WEBLOG_COMMAND_DOWN,
 	WEBLOG_COMMAND_UP
