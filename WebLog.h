@@ -112,8 +112,8 @@ struct weblog_display_typ {
 };
 
 /* Function prototypes */
-void order_time_bytes(unsigned long sec, unsigned long nsec, unsigned char *bytes);
-void replace_char(char *str, char find, char replace);
-void radix_sort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
+void formatTimestamp(unsigned long sec, unsigned long nsec, unsigned char *bytes);
+void replaceCharacter(char *source, char find, char replace);
+void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[], unsigned short sortIdx[], unsigned short n, unsigned char k, unsigned char descending);
 
 #endif
