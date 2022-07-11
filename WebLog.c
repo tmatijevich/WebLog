@@ -10,13 +10,13 @@
 #include "WebLog.h"
 
 /* Variable declaration */
-_LOCAL unsigned char refresh, refreshed, down, up, done, valid, previousRefresh, previousDown, previousUp, prevCmd, previousValid;
+_LOCAL unsigned char refresh, refreshed, down, up, done, valid, previousRefresh, previousDown, previousUp, previousValid;
 _LOCAL long l, r, s, d, d0, dl, dr, searchCount, searchOffset, displayCount, displayOffset;
 _LOCAL unsigned char state;
 _LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
 unsigned short unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
 unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
-enum webLogCommandEnum command, previousCommand;
+_LOCAL enum webLogCommandEnum command, previousCommand;
 _LOCAL struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
 _LOCAL struct webLogRecordSearchType record[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
 unsigned char zeroTime[WEBLOG_BYTE_MAX];
@@ -105,6 +105,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 2. Nothing displayed */
 					else if(book[l].display.newestID == 0) {
+						book[l].search.skip = false;
 						book[l].search.startID = book[l].search.newestID;
 						book[l].search.stopID = 0;
 					}
@@ -116,6 +117,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 4. Start search after the oldest displayed */
 					else {
+						book[l].search.skip = false;
 						book[l].search.startID = 0;
 						book[l].search.nextID = book[l].display.oldestID;
 						book[l].search.stopID = 0;
@@ -131,6 +133,7 @@ void _CYCLIC program_cyclic(void)
 					/* 1. Empty search */
 					if(book[l].search.newestID == 0) {
 						if(book[l].latestID) {
+							book[l].search.skip = false;
 							book[l].search.startID = book[l].latestID;
 							book[l].search.stopID = 0;
 						}
@@ -146,6 +149,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 3. Nothing displayed */
 					else if(book[l].display.newestID == 0) {
+						book[l].search.skip = false;
 						book[l].search.startID = 0;
 						book[l].search.nextID = book[l].search.oldestID;
 						book[l].search.stopID = 0;
@@ -153,6 +157,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 4. Start search after the oldest searched record */
 					else {
+						book[l].search.skip = false;
 						book[l].search.startID = 0;
 						book[l].search.nextID = book[l].search.oldestID;
 						book[l].search.stopID = 0;
@@ -173,6 +178,7 @@ void _CYCLIC program_cyclic(void)
 					/* 1. Empty search */
 					if(book[l].search.newestID == 0) {
 						if(book[l].latestID) {
+							book[l].search.skip = false;
 							book[l].search.startID = MIN(WEBLOG_RECORD_MAX, book[l].latestID);
 							book[l].search.stopID = 0;
 						}
@@ -188,12 +194,14 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 3. Nothing displayed */
 					else if(book[l].display.newestID == 0) {
+						book[l].search.skip = false;
 						book[l].search.startID = MIN(book[l].search.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
 						book[l].search.stopID = book[l].search.newestID;
 					}
 					
 					/* 4. Search above the newest searched record */
 					else {
+						book[l].search.skip = false;
 						book[l].search.startID = MIN(book[l].search.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
 						book[l].search.stopID = book[l].search.newestID;
 					}
@@ -212,6 +220,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 2. Nothing displayed */
 					else if(book[l].display.newestID == 0) {
+						book[l].search.skip = false;
 						book[l].search.startID = book[l].search.newestID;
 						book[l].search.stopID = book[l].search.oldestID - 1;
 					}
@@ -223,6 +232,7 @@ void _CYCLIC program_cyclic(void)
 					
 					/* 4. Search above the newest displayed record */
 					else {
+						book[l].search.skip = false;
 						book[l].search.startID = MIN(book[l].display.newestID + WEBLOG_RECORD_MAX, book[l].latestID);
 						book[l].search.stopID = book[l].display.newestID;
 					}
@@ -333,7 +343,7 @@ void _CYCLIC program_cyclic(void)
 				dl = sortedIndices[s] / WEBLOG_RECORD_MAX;
 				dr = sortedIndices[s] % WEBLOG_RECORD_MAX;
 				if(memcmp(zeroTime, record[dl][dr].time, sizeof(zeroTime)) == 0) {
-					searchOffset = MAX(s - WEBLOG_RECORD_MAX, 0);
+					searchOffset = MAX(s - (long)WEBLOG_RECORD_MAX, 0);
 					break;
 				}
 			}
@@ -359,20 +369,18 @@ void _CYCLIC program_cyclic(void)
 						break;
 					}
 					
-					switch(previousCommand) {
-						case WEBLOG_COMMAND_REFRESH: 
-							displayOffset = 0;
-							break;
-						case WEBLOG_COMMAND_DOWN: 
-							displayOffset += WEBLOG_RECORD_MAX;
-							break;
-						case WEBLOG_COMMAND_UP: 
-							displayOffset = previousValid ? displayOffset - WEBLOG_RECORD_MAX : displayOffset + displayCount - WEBLOG_RECORD_MAX; 
-							if(displayOffset < 0) displayOffset = 0;
-							break;
-						default:
-							displayOffset = 0;
-							break;
+					if(command == WEBLOG_COMMAND_REFRESH)
+						displayOffset = 0;
+					
+					else if(command == WEBLOG_COMMAND_DOWN) {
+						if(previousValid) displayOffset += WEBLOG_RECORD_MAX;
+						else displayOffset = 0;
+					}
+						
+					else if(command == WEBLOG_COMMAND_UP) {
+						if(previousValid) displayOffset -= WEBLOG_RECORD_MAX;
+						else displayOffset += displayCount - WEBLOG_RECORD_MAX;
+						if(displayOffset < 0) displayOffset = 0;
 					}
 					
 					displayCount = 0;
