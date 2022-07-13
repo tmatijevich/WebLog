@@ -8,6 +8,8 @@
 *******************************************************************************/
 
 #include "WebLog.h"
+static void recordSearch(void);
+static void recordSort(void);
 
 /* Variable declaration */
 _LOCAL unsigned char refresh, refreshed, down, up, done, valid, previousRefresh, previousDown, previousUp, previousValid;
@@ -36,16 +38,15 @@ void _INIT program_init(void) {
 	
 	/* Initialize (system) logbook identifiers and their associated names */
 	strcpy(book[0].name, "$arlogsys"); 	strcpy(book[0].description, "System");
-	strcpy(book[1].name, "$arlogusr"); 	strcpy(book[1].description, "User");
-//	strcpy(book[1].name, "$fieldbus"); 	strcpy(book[1].description, "Fieldbus");
-//	strcpy(book[2].name, "$arlogconn"); 	strcpy(book[2].description, "Connectivity");
-//	strcpy(book[3].name, "$textsys"); 	strcpy(book[3].description, "Text System");
-//	strcpy(book[4].name, "$accsec"); 	strcpy(book[4].description, "Access & Security");
-//	strcpy(book[5].name, "$visu"); 		strcpy(book[5].description, "Visualization");
-//	strcpy(book[6].name, "$firewall"); 	strcpy(book[6].description, "Firewall");
-//	strcpy(book[7].name, "$versinfo"); 	strcpy(book[7].description, "Version Info");
-//	strcpy(book[8].name, "$diag"); 		strcpy(book[8].description, "Diagnostics");
-//	strcpy(book[9].name, "$arlogusr"); 	strcpy(book[9].description, "User");
+	strcpy(book[1].name, "$fieldbus"); 	strcpy(book[1].description, "Fieldbus");
+	strcpy(book[2].name, "$arlogconn"); strcpy(book[2].description, "Connectivity");
+	strcpy(book[3].name, "$textsys"); 	strcpy(book[3].description, "Text System");
+	strcpy(book[4].name, "$accsec"); 	strcpy(book[4].description, "Access & Security");
+	strcpy(book[5].name, "$visu"); 		strcpy(book[5].description, "Visualization");
+	strcpy(book[6].name, "$firewall"); 	strcpy(book[6].description, "Firewall");
+	strcpy(book[7].name, "$versinfo"); 	strcpy(book[7].description, "Version Info");
+	strcpy(book[8].name, "$diag"); 		strcpy(book[8].description, "Diagnostics");
+	strcpy(book[9].name, "$arlogusr"); 	strcpy(book[9].description, "User");
 	
 	/* Get idents of all logbooks */
 	for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
@@ -248,103 +249,33 @@ void _CYCLIC program_cyclic(void)
 	
 	/* Perform Search */
 	if(command) { /* Only search on command */
-		memset(&record, 0, sizeof(record));
-		searchCount = 0;
-		valid = false;
-		
-		for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
-			/* Clear status */
-			book[l].search.count = 0;
-			book[l].search.newestID = 0;
-			book[l].search.oldestID = 0;
-			
-			/* Check requirements */
-			if(book[l].ident == 0 || book[l].search.skip) continue;
-			
-			/* Begin reading records */
-			for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
-				/* Check stop condition */
-				if(r && book[l].search.stopID) {
-					if(record[l][r - 1].ID - 1 == book[l].search.stopID) break;
-				}
-				
-				/* Get record ID */
-				if(r == 0 && book[l].search.startID)
-					/* Search parameter specifies a start ID */
-					record[l][r].ID = book[l].search.startID;
-					
-				else if(r == 0 && book[l].search.nextID == 0) {
-					/* Now start ID or next ID search parameter */
-					fbGetLatestRecord.Ident = book[l].ident;
-					fbGetLatestRecord.Execute = true;
-					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
-					if(fbGetLatestRecord.StatusID == ERR_OK) {
-						record[l][r].ID = fbGetLatestRecord.RecordID;
-						book[l].latestID = fbGetLatestRecord.RecordID;
-					}
-					fbGetLatestRecord.Execute = false;
-					ArEventLogGetLatestRecordID(&fbGetLatestRecord);
-				}
-				else {
-					/* Search parameter specifies a next ID or subsequent record */
-					fbGetPreviousRecord.Ident = book[l].ident;
-					if(r == 0) fbGetPreviousRecord.RecordID = book[l].search.nextID;
-					else fbGetPreviousRecord.RecordID = record[l][r - 1].ID;
-					fbGetPreviousRecord.Execute = true;
-					ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
-					
-					if(fbGetPreviousRecord.StatusID == ERR_OK) 
-						record[l][r].ID = fbGetPreviousRecord.PrevRecordID;
-					
-					fbGetPreviousRecord.Execute = false;
-					ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
-				}
-				
-				/* Verify ID */
-				if(record[l][r].ID == 0) break;
-				
-				/* Read timestamp */
-				fbReadRecord.Ident = book[l].ident;
-				fbReadRecord.RecordID = record[l][r].ID;
-				fbReadRecord.Execute = true;
-				ArEventLogRead(&fbReadRecord);
-					
-				if(fbReadRecord.StatusID == ERR_OK || fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID)
-					formatTimestamp(fbReadRecord.TimeStamp.sec, fbReadRecord.TimeStamp.nsec, record[l][r].time);
-				
-				fbReadRecord.Execute = false;
-				ArEventLogRead(&fbReadRecord);
-				
-				/* Verify timestamp */
-				if(memcmp(zeroTime, record[l][r].time, sizeof(zeroTime)) == 0) break;
-				
-				/* Update search status */
-				book[l].search.count++;
-				searchCount++;
-				valid = true;
-				refreshed = true;
-				if(r == 0) book[l].search.newestID = record[l][r].ID;
-				book[l].search.oldestID = record[l][r].ID;
-				
-			} /* Loop records */
-		} /* Loop logbooks */
-		
-		/* Sort through searched records */
-		for(s = 0; s < WEBLOG_SORT_MAX; s++) {
-			sortedBytes[s] = unsortedBytes[s] = record[s / WEBLOG_RECORD_MAX][(WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX].time;
-			sortedIndices[s] = unsortedIndices[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
-		}
-		radixSort(unsortedBytes, unsortedIndices, sortedBytes, sortedIndices, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
+		recordSearch();
+		recordSort();
 		
 		/* Get the oldest WEBLOG_RECORD_MAX records when seeking up */
 		if(command == WEBLOG_COMMAND_UP) {
-			/* Find the first invalid record then look RECORD_MAX up */
-			for(s = 0; s < WEBLOG_SORT_MAX; s++) {
-				dl = sortedIndices[s] / WEBLOG_RECORD_MAX;
-				dr = sortedIndices[s] % WEBLOG_RECORD_MAX;
-				if(memcmp(zeroTime, record[dl][dr].time, sizeof(zeroTime)) == 0) {
-					searchOffset = MAX(s - (long)WEBLOG_RECORD_MAX, 0);
-					break;
+			/* If search is short, re-run search and sort with refresh parameters */
+			if(searchCount < WEBLOG_RECORD_MAX && valid) { /* Partial but not empty */
+				for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+					book[l].search.skip = false;
+					book[l].search.startID = 0;
+					book[l].search.nextID = 0;
+					book[l].search.stopID = 0;
+				}
+				recordSearch();
+				recordSort();
+				searchOffset = 0;
+				command = WEBLOG_COMMAND_REFRESH; /* Switch command to refresh to properly update previousCommand */
+			}
+			else {
+				/* Find the first invalid record then look RECORD_MAX up */
+				for(s = 0; s < WEBLOG_SORT_MAX; s++) {
+					dl = sortedIndices[s] / WEBLOG_RECORD_MAX;
+					dr = sortedIndices[s] % WEBLOG_RECORD_MAX;
+					if(memcmp(zeroTime, record[dl][dr].time, sizeof(zeroTime)) == 0) {
+						searchOffset = MAX(s - (long)WEBLOG_RECORD_MAX, 0);
+						break;
+					}
 				}
 			}
 		}
@@ -529,6 +460,100 @@ void _CYCLIC program_cyclic(void)
 	if(command) previousCommand = command; /* Update previous command only on a rising edge */
 	
 }
+
+/* Record search (subroutine to run multiple times) */
+void recordSearch(void) {
+	memset(&record, 0, sizeof(record));
+	searchCount = 0;
+	valid = false;
+	
+	for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
+		/* Clear status */
+		book[l].search.count = 0;
+		book[l].search.newestID = 0;
+		book[l].search.oldestID = 0;
+		
+		/* Check requirements */
+		if(book[l].ident == 0 || book[l].search.skip) continue;
+		
+		/* Begin reading records */
+		for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
+			/* Check stop condition */
+			if(r && book[l].search.stopID) {
+				if(record[l][r - 1].ID - 1 == book[l].search.stopID) break;
+			}
+			
+			/* Get record ID */
+			if(r == 0 && book[l].search.startID)
+				/* Search parameter specifies a start ID */
+				record[l][r].ID = book[l].search.startID;
+				
+			else if(r == 0 && book[l].search.nextID == 0) {
+				/* Now start ID or next ID search parameter */
+				fbGetLatestRecord.Ident = book[l].ident;
+				fbGetLatestRecord.Execute = true;
+				ArEventLogGetLatestRecordID(&fbGetLatestRecord);
+				if(fbGetLatestRecord.StatusID == ERR_OK) {
+					record[l][r].ID = fbGetLatestRecord.RecordID;
+					book[l].latestID = fbGetLatestRecord.RecordID;
+				}
+				fbGetLatestRecord.Execute = false;
+				ArEventLogGetLatestRecordID(&fbGetLatestRecord);
+			}
+			else {
+				/* Search parameter specifies a next ID or subsequent record */
+				fbGetPreviousRecord.Ident = book[l].ident;
+				if(r == 0) fbGetPreviousRecord.RecordID = book[l].search.nextID;
+				else fbGetPreviousRecord.RecordID = record[l][r - 1].ID;
+				fbGetPreviousRecord.Execute = true;
+				ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+				
+				if(fbGetPreviousRecord.StatusID == ERR_OK) 
+					record[l][r].ID = fbGetPreviousRecord.PrevRecordID;
+				
+				fbGetPreviousRecord.Execute = false;
+				ArEventLogGetPreviousRecordID(&fbGetPreviousRecord);
+			}
+			
+			/* Verify ID */
+			if(record[l][r].ID == 0) break;
+			
+			/* Read timestamp */
+			fbReadRecord.Ident = book[l].ident;
+			fbReadRecord.RecordID = record[l][r].ID;
+			fbReadRecord.Execute = true;
+			ArEventLogRead(&fbReadRecord);
+				
+			if(fbReadRecord.StatusID == ERR_OK || fbReadRecord.StatusID == arEVENTLOG_WRN_NO_EVENTID)
+				formatTimestamp(fbReadRecord.TimeStamp.sec, fbReadRecord.TimeStamp.nsec, record[l][r].time);
+			
+			fbReadRecord.Execute = false;
+			ArEventLogRead(&fbReadRecord);
+			
+			/* Verify timestamp */
+			if(memcmp(zeroTime, record[l][r].time, sizeof(zeroTime)) == 0) break;
+			
+			/* Update search status */
+			book[l].search.count++;
+			searchCount++;
+			valid = true;
+			refreshed = true;
+			if(r == 0) book[l].search.newestID = record[l][r].ID;
+			book[l].search.oldestID = record[l][r].ID;
+			
+		} /* Loop records */
+	} /* Loop logbooks */
+} /* End function */
+
+/* Record sort (subroutine to run multiple times) */
+void recordSort(void) {
+	/* Sort through searched records */
+	for(s = 0; s < WEBLOG_SORT_MAX; s++) {
+		sortedBytes[s] = unsortedBytes[s] = record[s / WEBLOG_RECORD_MAX][(WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX].time;
+		sortedIndices[s] = unsortedIndices[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
+	}
+	radixSort(unsortedBytes, unsortedIndices, sortedBytes, sortedIndices, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
+} /* End function */
 
 /* Format sortable time data */
 void formatTimestamp(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
