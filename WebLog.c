@@ -1,29 +1,33 @@
 /*******************************************************************************
- * File:      WebLog\WebLog.c
- * Author:    Tyler Matijevich
- * Created:   2022-01-05
+ * File: WebLog.c
+ * Author: Tyler Matijevich
+ * Created: 2022-01-05
 ********************************************************************************
  * Description: Use ArEventLog to read, collect, and sort logbook records for
    display on web page
 *******************************************************************************/
 
 #include "WebLog.h"
+
+/* Prototypes */
 static void recordSearch(void);
 static void recordSort(void);
+static void formatTimestamp(unsigned long sec, unsigned long nsec, unsigned char *bytes);
+static void replaceCharacter(char *source, char find, char replace);
 
-/* Variable declaration */
+/* Global Variables */
 _LOCAL unsigned char refresh, refreshed, down, up, done, valid, previousRefresh, previousDown, previousUp, previousValid;
-_LOCAL long l, r, s, d, d0, dl, dr, searchCount, searchOffset, displayCount, displayOffset;
-_LOCAL unsigned char state;
-_LOCAL struct weblog_display_typ display[WEBLOG_RECORD_MAX];
+long l, r, s, d, d0, dl, dr, searchCount, searchOffset, displayCount, displayOffset;
+enum webLogDisplayStateEnum state;
+_LOCAL struct webLogDisplayType display[WEBLOG_RECORD_MAX];
 unsigned short unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
 unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
-_LOCAL enum webLogCommandEnum command, previousCommand;
-_LOCAL struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
-_LOCAL struct webLogRecordSearchType record[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
+enum webLogCommandEnum command, previousCommand;
+struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
+struct webLogRecordSearchType record[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
 unsigned char zeroTime[WEBLOG_BYTE_MAX];
 
-/* Function block instances */
+/* Function Blocks */
 ArEventLogGetIdent_typ fbGetIdent;
 ArEventLogGetLatestRecordID_typ fbGetLatestRecord;
 ArEventLogGetPreviousRecordID_typ fbGetPreviousRecord;
@@ -33,7 +37,7 @@ ArEventLogReadDescription_typ fbReadDescription;
 ArEventLogReadAddData_typ fbReadAsciiData;
 ArEventLogReadObjectID_typ fbReadObjectName;
 
-/* Initialization routine */
+/* Initialization Routine */
 void _INIT program_init(void) {
 	
 	/* Initialize (system) logbook identifiers and their associated names */
@@ -64,7 +68,7 @@ void _INIT program_init(void) {
 	memset(zeroTime, 0, sizeof(zeroTime));
 }
 
-/* Cyclic routine */
+/* Cyclic Routine */
 void _CYCLIC program_cyclic(void)
 {	
 	/* Accept user command */
@@ -287,7 +291,7 @@ void _CYCLIC program_cyclic(void)
 	for(d = d0; d < WEBLOG_RECORD_MAX; d++) {
 		switch(state) {
 			/* Client request */
-			case 0:
+			case WEBLOG_DISPLAY_IDLE:
 				if(command) {
 					for(l = 0; l < WEBLOG_LOGBOOK_MAX; l++) {
 						book[l].display.count = 0;
@@ -296,7 +300,7 @@ void _CYCLIC program_cyclic(void)
 					}
 					
 					if(!valid) {
-						state = 201;
+						state = WEBLOG_DISPLAY_COMPLETE;
 						break;
 					}
 					
@@ -317,7 +321,7 @@ void _CYCLIC program_cyclic(void)
 					displayCount = 0;
 					memset(display, 0, sizeof(display));
 					
-					state = 10;
+					state = WEBLOG_DISPLAY_READ;
 					/* Do not break, proceed to next case */
 				}
 				else {
@@ -326,7 +330,7 @@ void _CYCLIC program_cyclic(void)
 				}
 				
 			/* EventID/ErrorNumber, Severity (Code, Facility), Timestamp */
-			case 10:
+			case WEBLOG_DISPLAY_READ:
 				dl = sortedIndices[searchOffset + d] / WEBLOG_RECORD_MAX;
 				dr = sortedIndices[searchOffset + d] % WEBLOG_RECORD_MAX;
 				
@@ -334,7 +338,7 @@ void _CYCLIC program_cyclic(void)
 				if(memcmp(zeroTime, record[dl][dr].time, sizeof(zeroTime)) == 0) {
 					display[d].severity = 10; /* Give invalid severity to avoid displaying "Success" */
 					if(d >= WEBLOG_RECORD_MAX - 1) {
-						state = 201;
+						state = WEBLOG_DISPLAY_COMPLETE;
 						break;
 					}
 					continue; /* Skip this record because it is invalid */
@@ -377,11 +381,11 @@ void _CYCLIC program_cyclic(void)
 				fbReadRecord.Execute = false;
 				ArEventLogRead(&fbReadRecord);
 				
-				state = 20; /* Finished */
+				state = WEBLOG_DISPLAY_DESCRIPTION; /* Finished */
 				/* Do not break case */
 				
 			/* Description */
-			case 20:
+			case WEBLOG_DISPLAY_DESCRIPTION:
 				fbReadDescription.Ident = book[dl].ident;
 				fbReadDescription.RecordID = display[d].ID;
 				fbReadDescription.TextBuffer = (unsigned long)display[d].description;
@@ -390,16 +394,16 @@ void _CYCLIC program_cyclic(void)
 				ArEventLogReadDescription(&fbReadDescription);
 				if(fbReadDescription.Busy) {
 					d0 = d;
-					break; /* Break and then return to state 20 */
+					break; /* Break and then return to this state */
 				}
 				fbReadDescription.Execute = false;
 				ArEventLogReadDescription(&fbReadDescription);
 				replaceCharacter(display[d].description, '"', ' ');
-				state = 30;
+				state = WEBLOG_DISPLAY_ASCII;
 				/* Do not break case */
 			
 			/* Ascii data and object ID */
-			case 30:
+			case WEBLOG_DISPLAY_ASCII:
 				fbReadAsciiData.Ident = book[dl].ident;
 				fbReadAsciiData.RecordID = display[d].ID;
 				fbReadAsciiData.AddData = (unsigned long)display[d].asciiData;
@@ -421,32 +425,32 @@ void _CYCLIC program_cyclic(void)
 				fbReadObjectName.Execute = false;
 				ArEventLogReadObjectID(&fbReadObjectName);
 				
-				state = 200;
+				state = WEBLOG_DISPLAY_NEXT;
 				/* Do not break case */
 			
 			/* Record done */
-			case 200:
+			case WEBLOG_DISPLAY_NEXT:
 				book[dl].display.count++;
 				if(book[dl].display.newestID == 0) book[dl].display.newestID = display[d].ID;
 				book[dl].display.oldestID = display[d].ID;
 				
 				if(d < WEBLOG_RECORD_MAX - 1) {
-					state = 10;
+					state = WEBLOG_DISPLAY_READ;
 					continue; /* Next record index */
 				}
-				state = 201;
+				state = WEBLOG_DISPLAY_COMPLETE;
 				/* Do not break case */
 				
 			/* Done */
-			case 201:
+			case WEBLOG_DISPLAY_COMPLETE:
 				done = true;
 				if(!refresh && !down && !up) {
 					done = false;
-					state = 0;
+					state = WEBLOG_DISPLAY_IDLE;
 				}
 				break;
 				
-			case 255:
+			case WEBLOG_DISPLAY_ERROR:
 				break;
 		}
 		break; /* Break record loop */
@@ -461,7 +465,7 @@ void _CYCLIC program_cyclic(void)
 	
 }
 
-/* Record search (subroutine to run multiple times) */
+/* Record Search */
 void recordSearch(void) {
 	memset(&record, 0, sizeof(record));
 	searchCount = 0;
@@ -545,7 +549,7 @@ void recordSearch(void) {
 	} /* Loop logbooks */
 } /* End function */
 
-/* Record sort (subroutine to run multiple times) */
+/* Record Sort */
 void recordSort(void) {
 	/* Sort through searched records */
 	for(s = 0; s < WEBLOG_SORT_MAX; s++) {
@@ -553,10 +557,11 @@ void recordSort(void) {
 		sortedIndices[s] = unsortedIndices[s] = (s / WEBLOG_RECORD_MAX) * WEBLOG_RECORD_MAX + (WEBLOG_RECORD_MAX - 1) - s % WEBLOG_RECORD_MAX;
 	}
 	radixSort(unsortedBytes, unsortedIndices, sortedBytes, sortedIndices, WEBLOG_SORT_MAX, WEBLOG_BYTE_MAX, 1);
-} /* End function */
+}
 
-/* Format sortable time data */
+/* Format Timestamp */
 void formatTimestamp(unsigned long sec, unsigned long nsec, unsigned char *bytes) {
+	/* Format timestamp into sortable data */
 	const int val = 1;
 	unsigned char i;
 	/* 0-3 seconds 4-7 nanoseconds (big endian) */
@@ -566,8 +571,9 @@ void formatTimestamp(unsigned long sec, unsigned long nsec, unsigned char *bytes
 	}
 }
 
-/* Replace quotes which are invalid in JSON value */
+/* Replace Character */
 void replaceCharacter(char *source, char find, char replace) {
+	/* Replace characters that are invalid in JSON data */
 	unsigned char i = 0;
 	while(source[i] && i < UCHAR_MAX) {
 		if(source[i] == find) source[i] = replace;

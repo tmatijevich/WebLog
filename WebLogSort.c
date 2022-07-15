@@ -1,7 +1,7 @@
 /*******************************************************************************
- * File:      WebLog\WebLogSort.c
- * Author:    Tyler Matijevich
- * Created:   2022-01-07
+ * File: WebLogSort.c
+ * Author: Tyler Matijevich
+ * Created: 2022-01-07
 ********************************************************************************
  * Description: Sort all records by time using LSB radix sort
 *******************************************************************************/
@@ -71,4 +71,4 @@ void radixSort(unsigned char *in[], unsigned short idx[], unsigned char *sort[],
 		}
 	}
 	
-} /* Definition */
+} /* End function */
