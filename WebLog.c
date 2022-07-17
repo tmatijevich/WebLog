@@ -17,7 +17,7 @@ static void replaceCharacter(char *source, char find, char replace);
 
 /* Global Variables */
 _LOCAL unsigned char refresh, refreshed, down, up, done, valid, previousRefresh, previousDown, previousUp, previousValid;
-long l, r, s, d, d0, dl, dr, searchCount, searchOffset, displayCount, displayOffset;
+_LOCAL long l, r, s, d, d0, dl, dr, searchCount, searchOffset, displayCount, displayOffset;
 enum webLogDisplayStateEnum state;
 _LOCAL struct webLogDisplayType display[WEBLOG_RECORD_MAX];
 unsigned short unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
