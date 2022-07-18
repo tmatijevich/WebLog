@@ -37,6 +37,7 @@
 struct webLogBookSearchType {
 	unsigned char count; /* Count how many records have been searched */
 	unsigned char skip; /* Skip search on this logbook */
+    unsigned char filter; /* Filter out this logbook */
     ArEventLogRecordIDType newestID; /* Newest searched ID (zero if empty search) */
 	ArEventLogRecordIDType oldestID; /* Oldest searched ID (zero if empty search) */
 	ArEventLogRecordIDType startID; /* Start search with this ID (search for latest if zero) */

@@ -23,7 +23,7 @@ _LOCAL struct webLogDisplayType display[WEBLOG_RECORD_MAX];
 unsigned short unsortedIndices[WEBLOG_SORT_MAX], sortedIndices[WEBLOG_SORT_MAX];
 unsigned char *unsortedBytes[WEBLOG_SORT_MAX], *sortedBytes[WEBLOG_SORT_MAX];
 enum webLogCommandEnum command, previousCommand;
-struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
+_LOCAL struct webLogBookType book[WEBLOG_LOGBOOK_MAX];
 struct webLogRecordSearchType record[WEBLOG_LOGBOOK_MAX][WEBLOG_RECORD_MAX];
 unsigned char zeroTime[WEBLOG_BYTE_MAX];
 
@@ -478,7 +478,7 @@ void recordSearch(void) {
 		book[l].search.oldestID = 0;
 		
 		/* Check requirements */
-		if(book[l].ident == 0 || book[l].search.skip) continue;
+		if(book[l].ident == 0 || book[l].search.skip || book[l].search.filter) continue;
 		
 		/* Begin reading records */
 		for(r = 0; r < WEBLOG_RECORD_MAX; r++) {
